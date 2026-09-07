@@ -20,6 +20,7 @@ pub mod shadowsocks;
 pub mod ss2022;
 pub mod stack;
 pub mod telemetry;
+pub mod traffic_routes;
 pub mod transport;
 pub mod verification;
 pub mod vless;

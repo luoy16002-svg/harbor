@@ -89,7 +89,7 @@ public partial class MainWindow
     }
     private async void RehearseRoutes(object sender, RoutedEventArgs e)
     {
-        string[] keys = ["routingMode", "finalPolicy", "rules", "groups", "privacy"];
+        string[] keys = ["routingMode", "finalPolicy", "rules", "groups", "privacy", "trafficRoutes", "directExceptions"];
         var draft = new JsonObject(); foreach (string key in keys) draft[key] = key == "privacy" ? PrivacyDefaults(profile) : profile[key]?.DeepClone();
         draft["routingMode"] = ProfileWorkflow.RoutingMode(profile);
         var editor = new TextDialog(this, "候选分流 · 仅用于预演", "编辑最终策略、规则、策略组或隐私限制，再比较出口变化。预演不保存配置、不发送网络请求。", draft.ToJsonString(Storage.Json));
@@ -98,7 +98,7 @@ public partial class MainWindow
         {
             if (client == null) return;
             var changes = JsonNode.Parse(editor.Text)?.AsObject() ?? throw new FormatException("候选配置不是 JSON 对象。");
-            if (changes.Any(change => !keys.Contains(change.Key))) throw new FormatException("预演编辑器只接受 routingMode、finalPolicy、rules、groups 和 privacy。");
+            if (changes.Any(change => !keys.Contains(change.Key))) throw new FormatException("预演编辑器只接受 routingMode、finalPolicy、rules、groups、privacy、trafficRoutes 和 directExceptions。");
             var candidate = profile.DeepClone().AsObject(); foreach (var change in changes) candidate[change.Key] = change.Value?.DeepClone();
             var result = await client.CallAsync("rehearse", new JsonObject { ["before"] = profile.DeepClone(), ["after"] = candidate, ["targets"] = RouteTargets(RehearsalTargets.Text) });
             var rows = result["rows"]!.AsArray().Select(row => new { Target = S(row!["target"]!, "host") + ":" + N(row["target"]!, "port") + " · " + S(row["target"]!, "protocol"), Before = S(row["before"]!, "outbound"), After = S(row["after"]!, "outbound"), Status = row["changed"]!.GetValue<bool>() ? "路径有变化" : "不变", Reason = S(row["after"]!, "reason") }).ToList();
@@ -108,7 +108,20 @@ public partial class MainWindow
     private async Task ExplainOfflineAsync()
     {
         if (client == null) return;
-        var result = await client.CallAsync("rehearse", new JsonObject { ["before"] = profile.DeepClone(), ["after"] = profile.DeepClone(), ["targets"] = RouteTargets(ExplainInput.Text) });
-        var decision = result["rows"]![0]!["after"]!; ExplainResult.Text = $"{S(decision, "reason")} → {S(decision, "policy")} → {S(decision, "outbound")} · 离线预演，未测量节点健康";
+        ExplainPath.Visibility = Visibility.Collapsed;
+        var targets = RouteTargets(ExplainInput.Text);
+        if (targets.Count != 1) throw new FormatException("路径检查每次填写一个目标。");
+        targets[0]!["protocol"] = ExplainProtocol.SelectedItem as string ?? "tcp";
+        string process = ExplainProcess.Text.Trim();
+        if (process.Length > 0 && !DirectExceptions.ValidProcess(process)) throw new FormatException("请输入有效进程名，例如 YuanShen.exe。");
+        if (process.Length > 0) targets[0]!["process"] = process;
+        var result = await client.CallAsync("rehearse", new JsonObject { ["before"] = profile.DeepClone(), ["after"] = profile.DeepClone(), ["targets"] = targets });
+        var decision = result["rows"]![0]!["after"]!; ExplainResult.Text = TrafficRoutes.ExplainReason(S(decision, "reason")) + " · 离线预演，未测量节点健康";
+        string outbound = S(decision, "outbound");
+        ExplainPathText.Text = (process.Length > 0 ? process + " · " : "") + S(targets[0]!, "host") + " → " + TrafficRoutes.PolicyLabel(profile, S(decision, "policy")) + " → " + TrafficRoutes.PolicyLabel(profile, outbound);
+        ExplainPathFacts.Text = (outbound == "REJECT" ? TrafficRoutes.ExplainReason(S(decision, "reason")) + "。\n" : "") +
+            TrafficRoutes.OutboundFacts(profile, outbound == "REJECT" ? S(decision, "policy") : outbound) + (process.Length > 0 ? " 进程名由手动输入，实际识别结果可能不同。" : "");
+        ExplainPath.Visibility = Visibility.Visible;
+        UpdateLayout(); ExplainPath.BringIntoView();
     }
 }

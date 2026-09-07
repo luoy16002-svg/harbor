@@ -17,6 +17,8 @@ public partial class MainWindow
             string label = ProfileWorkflow.RoutingLabel(profile);
             string[] labels = ProfileWorkflow.RoutingModes.Select(value => value.Label).ToArray();
             var exceptions = DirectExceptions.Read(profile);
+            bool hasPaths = TrafficRoutes.Read(profile).Any(route => route.Enabled);
+            SyncTrafficRoutes();
             DirectExceptionSummary.Text = "直连例外：" + exceptions.Summary;
             HomeRoutingMode.ItemsSource ??= labels; RoutingModeInput.ItemsSource ??= labels;
             RehearsalRoutingMode.ItemsSource ??= labels;
@@ -25,18 +27,19 @@ public partial class MainWindow
             HomeRoutingMode.IsEnabled = RoutingModeInput.IsEnabled = !busy && client != null;
             string description = mode switch
             {
-                "global" => exceptions.Enabled ? "指定例外直连，其余请求全部使用默认出口。" : "忽略分流规则，所有请求使用默认出口。",
-                "direct" => "忽略分流规则，所有请求使用直连。",
+                "global" => exceptions.Enabled ? "指定例外直连，其余请求使用默认出口。" : "未命中路径的请求使用默认出口，下方规则暂不匹配。",
+                "direct" => "未命中路径的请求使用直连，下方规则暂不匹配。",
                 _ => exceptions.Enabled ? "先检查直连例外，再按顺序匹配规则，未命中时使用默认出口。" : "按顺序匹配规则，未命中时使用默认出口。"
             };
             bool directBlocked = mode == "direct" && profile["privacy"]?["blockDirect"]?.GetValue<bool>() == true;
+            if (hasPaths) description = "先匹配应用 / 网站路径。" + description;
             HomeRoutingDescription.Text = directBlocked ? "当前隐私设置禁止非回环直连。" : description;
             RoutingModeDescription.Text = description + "仅改变进入 Harbor 的新连接，已有连接保留原出口。隐私限制仍然生效。" +
                 (directBlocked ? "当前已禁止非回环直连，这类请求会被拦截。" : "");
             RuleModeHint.Text = mode == "rules" ? "规则按顺序匹配；已停用的规则不参与匹配。" : "当前模式不匹配下方规则。规则保持保存，切回“按规则”后生效。";
             PolicySummary.Text = mode == "direct" ? "DIRECT" : S(profile, "finalPolicy");
             PolicyDetail.Text = label + " · " + description;
-            FinalPolicy.IsEnabled = mode != "direct" && !busy;
+            FinalPolicy.IsEnabled = (mode != "direct" || hasPaths) && !busy;
             RehearsalPolicy.IsEnabled = RehearsalRoutingMode.SelectedItem as string != "全部直连";
         }
         finally { syncing = previous; }

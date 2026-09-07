@@ -213,10 +213,7 @@ impl Engine {
         target: (&str, u16, &str),
         source: Option<crate::process::Source>,
     ) -> Result<Decision> {
-        let exceptions = &snapshot.config.direct_exceptions;
-        let process = if exceptions.enabled
-            && !exceptions.processes.is_empty()
-            && !exceptions.domain_matches(target.0)
+        let process = if crate::traffic_routes::needs_process(&snapshot.config, target.0)
             && !snapshot.filter.blocked(target.0)
             && let Some(source) = source
         {

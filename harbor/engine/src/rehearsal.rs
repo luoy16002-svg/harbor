@@ -14,6 +14,8 @@ pub struct Target {
     pub host: String,
     pub port: u16,
     pub protocol: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub process: Option<String>,
 }
 
 pub fn compare(before: &Config, after: &Config, targets: &[Target]) -> Result<Value> {
@@ -38,18 +40,27 @@ pub fn compare(before: &Config, after: &Config, targets: &[Target]) -> Result<Va
                 && matches!(target.protocol.as_str(), "tcp" | "udp"),
             "Invalid route target"
         );
-        let a = policy::decide_filtered(
+        ensure!(
+            target
+                .process
+                .as_deref()
+                .is_none_or(crate::exceptions::valid_process),
+            "Invalid preview process name"
+        );
+        let a = policy::decide_with_process(
             before,
             &mut previous,
             &before_filter,
             (&target.host, target.port, &target.protocol),
+            target.process.as_deref(),
             0,
         )?;
-        let b = policy::decide_filtered(
+        let b = policy::decide_with_process(
             after,
             &mut candidate,
             &after_filter,
             (&target.host, target.port, &target.protocol),
+            target.process.as_deref(),
             0,
         )?;
         rows.push(json!({"target":target,"before":a,"after":b,"changed":a.outbound != b.outbound || a.policy != b.policy || a.reason != b.reason}));

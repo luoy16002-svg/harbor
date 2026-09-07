@@ -14,7 +14,7 @@ The optional configuration defaults to disabled for old and new workspaces:
 
 Each list allows up to 256 entries. Domains are ASCII suffixes, with a label boundary: `bilibili.com` includes `api.bilibili.com` but excludes `notbilibili.com`. URLs, literal IPs and wildcards are rejected. Process entries are ASCII executable basenames, compared without ASCII case sensitivity; paths and wildcards are rejected. A basename match is a routing convenience, not an authenticated application identity.
 
-Local domain blocking is evaluated first. Direct exceptions precede the routing mode and ordinary rules, and transport privacy restrictions apply afterward. A direct exception cannot override the option that blocks non-loopback direct connections. Disabling exceptions retains the lists. Saving uses normal validation, encrypted configuration history, and runtime rollback on persistence failure. Existing TCP connections and UDP destination sessions retain their original configuration generation.
+Local domain blocking is evaluated first, followed by ordered [traffic paths](traffic-paths.md). If no path matched, direct exceptions precede the routing mode and ordinary rules, and transport privacy restrictions apply afterward. A direct exception cannot override the option that blocks non-loopback direct connections. Disabling exceptions retains the lists. Saving uses normal validation, encrypted configuration history, and runtime rollback on persistence failure. Existing TCP connections and UDP destination sessions retain their original configuration generation.
 
 ## Windows socket ownership
 
@@ -23,10 +23,10 @@ Process matching uses the read-only Windows [TCP endpoint table](https://learn.m
 - TCP matches both local and remote addresses and ports. For HTTP/SOCKS clients these identify the connection to Harbor; for packet flows they identify the original connection.
 - UDP matches its actual datagram source against a local or wildcard binding. It does not mistake the SOCKS TCP control port for the UDP source port. Multiple candidate owners produce no match.
 - IPv4 and IPv6 tables are supported. Ownership is checked again while holding the queried process handle. Endpoint and PID results are never cached.
-- Only enabled process lists trigger a lookup, and a matching domain needs no process lookup. At most four blocking lookup jobs run at once, with no waiting queue. The route caller waits at most 250 ms; an unfinished job retains its slot until the OS call returns. Each table buffer is limited to 8 MiB and three resize attempts; derived rows are temporary and bounded by that table.
+- Only enabled process lists trigger a lookup, and a matching domain needs no process lookup unless an earlier process path could take precedence. At most four blocking lookup jobs run at once, with no waiting queue. The route caller waits at most 250 ms; an unfinished job retains its slot until the OS call returns. Each table buffer is limited to 8 MiB and three resize attempts; derived rows are temporary and bounded by that table.
 - Missing, inaccessible, ambiguous, busy or timed-out ownership falls back to normal routing. It never grants direct routing by default. Windows endpoint tables are snapshots; process matching is best effort and cannot provide a kernel-enforced identity guarantee.
 
-Process names and paths are transient lookup data. They are not added to connection records, diagnostics, or an executable cache. The configured exception lists are part of the encrypted workspace and its retained history; explicit configuration export includes them. Domain path checks and offline comparison do not look up or simulate a process. Explicit proxy verification still tests the chosen proxy independently of these exceptions.
+Process names and paths are transient lookup data. They are not added to connection records, diagnostics, or an executable cache. The configured exception lists are part of the encrypted workspace and its retained history; explicit configuration export includes them. Path checks and offline comparison do not look up a process. The path checker can simulate a manually supplied process filename; this does not confirm actual OS ownership. Explicit proxy verification still tests the chosen proxy independently of these exceptions.
 
 ## Capture and network scope
 

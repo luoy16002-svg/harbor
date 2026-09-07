@@ -104,6 +104,7 @@ internal static class Subscriptions
         var owned = previous?.NodeNames.ToHashSet() ?? [];
         var referenced = new HashSet<string> { candidate["finalPolicy"]!.GetValue<string>() };
         foreach (var rule in candidate["rules"]!.AsArray()) referenced.Add(rule!["policy"]!.GetValue<string>());
+        foreach (var route in candidate["trafficRoutes"] as JsonArray ?? []) if (route?["policy"]?.GetValue<string>() is string policy) referenced.Add(policy);
         foreach (var group in candidate["groups"]!.AsArray()) foreach (var member in group!["members"]!.AsArray()) referenced.Add(member!.GetValue<string>());
         var incomingNames = new HashSet<string>(); var pending = new List<JsonObject>();
         foreach (var raw in incoming)

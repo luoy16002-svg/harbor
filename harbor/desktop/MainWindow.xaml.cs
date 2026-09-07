@@ -27,7 +27,7 @@ public partial class MainWindow : Window
     private bool changingConnection; private long connectionRevision;
     private ulong lastUp, lastDown; private DateTime lastSample = DateTime.UtcNow;
     private List<FlowRow> flows = [];
-    public MainWindow() { InitializeComponent(); Icon = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/Assets/harbor.ico")); timer.Tick += async (_, _) => await RefreshAsync(); }
+    public MainWindow() { InitializeComponent(); VersionLabel.Text = typeof(MainWindow).Assembly.GetName().Version?.ToString(3) + " · Windows x64"; Icon = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/Assets/harbor.ico")); timer.Tick += async (_, _) => await RefreshAsync(); }
     private async void WindowLoaded(object sender, RoutedEventArgs e)
     {
         try
@@ -176,6 +176,7 @@ public partial class MainWindow : Window
     private static string State(string state) => state switch { "active" => "活跃", "connecting" => "连接中", "closed" => "已结束", "failed" => "失败", "healthy" => "正常", "degraded" => "待观察", "unavailable" => "不可用", _ => "未测试" };
     private void SyncProfile()
     {
+        ExplainConditionsChanged(this, new RoutedEventArgs());
         InvalidateRoutePreview();
         syncing = true;
         try
@@ -276,6 +277,7 @@ public partial class MainWindow : Window
     {
         if (oldName == newName) return; if (S(candidate, "finalPolicy") == oldName) candidate["finalPolicy"] = newName;
         foreach (var rule in candidate["rules"]!.AsArray()) if (S(rule!, "policy") == oldName) rule!["policy"] = newName;
+        foreach (var route in candidate["trafficRoutes"] as JsonArray ?? []) if (S(route!, "policy") == oldName) route!["policy"] = newName;
         foreach (var group in candidate["groups"]!.AsArray()) { var members = group!["members"]!.AsArray(); for (int i = 0; i < members.Count; i++) if (members[i]!.GetValue<string>() == oldName) members[i] = newName; if (S(group, "selected") == oldName) group["selected"] = newName; }
     }
     private async void AddRule(object sender, RoutedEventArgs e) => await EditRuleAsync(null);

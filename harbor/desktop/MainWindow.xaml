@@ -22,7 +22,7 @@
             <Ellipse x:Name="StatusDot" Width="6" Height="6" Fill="#94A29A" Margin="0,0,7,0" />
             <TextBlock x:Name="SidebarStatus" Text="引擎未启动" FontSize="11" Foreground="#65776D" />
           </StackPanel>
-          <TextBlock Text="0.10.0 · Windows x64" Margin="12,0,0,0" FontSize="10" Foreground="#65776D" />
+          <TextBlock x:Name="VersionLabel" Margin="12,0,0,0" FontSize="10" Foreground="#65776D" />
         </StackPanel>
         <StackPanel>
           <Button x:Name="NavOverview" Style="{StaticResource Nav}" Tag="Overview" Click="Navigate" Background="#DFE9E4">
@@ -467,22 +467,76 @@
         </Grid>
         <ScrollViewer x:Name="RoutingPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
           <StackPanel>
-            <TextBlock Text="分流" Style="{StaticResource Heading}" />
-            <TextBlock Text="管理进入 Harbor 的请求路径。IP 规则只匹配已知 IP，不为分流额外查询域名。" Style="{StaticResource Hint}" Margin="0,0,0,22" />
+            <TextBlock Text="流量路径" Style="{StaticResource Heading}" />
+            <TextBlock Text="把应用和网站放到合适的出口。路径优先于直连例外和分流模式，隐私拦截始终生效。" Style="{StaticResource Hint}" Margin="0,0,0,22" />
             <Border Style="{StaticResource Panel}" Margin="0,0,0,16">
               <StackPanel>
                 <DockPanel><TextBlock Text="当前分流模式" Style="{StaticResource Section}" VerticalAlignment="Center" Margin="0,0,18,0"/><ComboBox x:Name="RoutingModeInput" SelectionChanged="RoutingModeChanged" Width="180" HorizontalAlignment="Left"/></DockPanel>
                 <TextBlock x:Name="RoutingModeDescription" Style="{StaticResource Hint}" Margin="0,12,0,0"/>
-                <DockPanel Margin="0,16,0,0"><Button DockPanel.Dock="Right" Content="编辑直连例外" Click="EditDirectExceptions" Margin="12,0,0,0"/><TextBlock x:Name="DirectExceptionSummary" Style="{StaticResource Hint}" VerticalAlignment="Center"/></DockPanel>
+                <DockPanel Margin="0,14,0,0"><TextBlock Text="默认出口" Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="0,0,14,0"/><ComboBox x:Name="FinalPolicy" SelectionChanged="FinalPolicyChanged"/></DockPanel>
               </StackPanel>
             </Border>
+            <DockPanel Margin="0,4,0,12">
+              <Button DockPanel.Dock="Right" Content="添加路径" Click="AddTrafficPath" Style="{StaticResource Primary}" Margin="12,0,0,0"/>
+              <StackPanel><TextBlock Text="应用 / 网站 → 出口 → 保护要求" Style="{StaticResource Section}" Margin="0,0,0,5"/><TextBlock x:Name="TrafficRouteSummary" Style="{StaticResource Hint}"/></StackPanel>
+            </DockPanel>
+            <WrapPanel Margin="0,0,0,14"><Button Content="原神 / 米哈游直连…" Click="AddGamePath" Margin="0,0,8,0"/><Button Content="B 站直连…" Click="AddVideoPath"/></WrapPanel>
+            <Border x:Name="TrafficRouteEmpty" Style="{StaticResource Panel}" Margin="0,0,0,14"><TextBlock Text="尚未添加路径。可以从游戏 / 视频预设开始，也可以给工作网站指定固定线路或加密代理。" Style="{StaticResource Hint}"/></Border>
+            <ItemsControl x:Name="TrafficRouteCards">
+              <ItemsControl.ItemTemplate><DataTemplate>
+                <Border Style="{StaticResource Panel}" Margin="0,0,0,12" Padding="18">
+                  <StackPanel>
+                    <DockPanel Margin="0,0,0,14">
+                      <WrapPanel DockPanel.Dock="Right" HorizontalAlignment="Right">
+                        <Button Content="↑" Tag="{Binding Index}" Click="MoveTrafficPathUp" ToolTip="提高优先级" Margin="0,0,4,0" Padding="8,4"/>
+                        <Button Content="↓" Tag="{Binding Index}" Click="MoveTrafficPathDown" ToolTip="降低优先级" Margin="0,0,8,0" Padding="8,4"/>
+                        <Button Content="编辑" Tag="{Binding Index}" Click="EditTrafficPath" Margin="0,0,4,0" Padding="10,4"/>
+                        <Button Content="{Binding ToggleText}" Tag="{Binding Index}" Click="ToggleTrafficPath" Margin="0,0,4,0" Padding="10,4"/>
+                        <Button Content="移除" Tag="{Binding Index}" Click="RemoveTrafficPath" Padding="10,4"/>
+                      </WrapPanel>
+                      <StackPanel Margin="0,0,12,0"><TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap"/><TextBlock Text="{Binding State}" Style="{StaticResource Hint}"/></StackPanel>
+                    </DockPanel>
+                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="1.1*"/><ColumnDefinition Width="34"/><ColumnDefinition Width="1.1*"/><ColumnDefinition Width="34"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                      <TextBlock Text="{Binding Sources}" ToolTip="{Binding SourceDetail}" TextWrapping="Wrap"/>
+                      <TextBlock Grid.Column="1" Text="→" Foreground="{StaticResource Accent}" HorizontalAlignment="Center"/>
+                      <TextBlock Grid.Column="2" Text="{Binding Exit}" TextWrapping="Wrap" FontWeight="SemiBold"/>
+                      <TextBlock Grid.Column="3" Text="→" Foreground="{StaticResource Accent}" HorizontalAlignment="Center"/>
+                      <TextBlock Grid.Column="4" Text="{Binding Protection}" TextWrapping="Wrap"/>
+                    </Grid>
+                    <TextBlock Text="{Binding Facts}" Style="{StaticResource Hint}" Margin="0,14,0,0"/>
+                  </StackPanel>
+                </Border>
+              </DataTemplate></ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <Border Style="{StaticResource Panel}" Margin="0,0,0,16"><StackPanel>
+              <DockPanel><Button DockPanel.Dock="Right" Content="编辑直连例外" Click="EditDirectExceptions" Margin="12,0,0,0"/><TextBlock x:Name="DirectExceptionSummary" Style="{StaticResource Hint}" VerticalAlignment="Center"/></DockPanel>
+              <Grid x:Name="LegacyTrafficPath" Margin="0,12,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="34"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                <TextBlock x:Name="LegacyTrafficSources" TextWrapping="Wrap"/><TextBlock Grid.Column="1" Text="→" Foreground="{StaticResource Accent}" HorizontalAlignment="Center"/><TextBlock x:Name="LegacyTrafficExit" Grid.Column="2" FontWeight="SemiBold" TextWrapping="Wrap"/>
+              </Grid>
+              <TextBlock Text="未命中上方路径时，检查原有直连例外。" Style="{StaticResource Hint}" Margin="0,10,0,14"/>
+              <TextBlock x:Name="TrafficDefault" FontWeight="SemiBold" TextWrapping="Wrap"/>
+            </StackPanel></Border>
+            <Expander Header="保护与线路质量 · 查看实际能力" Margin="0,0,0,18"><Border Style="{StaticResource Panel}" Margin="0,12,0,0"><StackPanel>
+              <TextBlock x:Name="TrafficDnsFacts" Style="{StaticResource Hint}" Margin="0,0,0,12"/>
+              <TextBlock x:Name="TrafficProtectionFacts" Style="{StaticResource Hint}" Margin="0,0,0,12"/>
+              <TextBlock Text="TLS / WSS 需要服务器配合，不能保证流量不可识别。代理不消除账号关联和浏览器指纹。出口 IP 类型、共享情况与信誉：尚未检测。" Style="{StaticResource Hint}" Margin="0,0,0,12"/>
+              <TextBlock Text="线路页可做实际 HTTPS 验证。策略组的端口探测只能辅助选路；历史验证结果不保证当前可用。" Style="{StaticResource Hint}" Margin="0,0,0,12"/>
+              <WrapPanel><Button Content="查看 / 验证线路" Tag="Nodes" Click="Navigate" Margin="0,0,8,0"/><Button Content="DNS 设置" Tag="Dns" Click="Navigate" Margin="0,0,8,0"/><Button Content="全局隐私设置" Tag="Privacy" Click="Navigate"/></WrapPanel>
+            </StackPanel></Border></Expander>
             <Border Style="{StaticResource Panel}" Margin="0,0,0,16">
               <StackPanel>
                 <TextBlock Text="路径检查" Style="{StaticResource Section}" />
                 <DockPanel>
                   <Button DockPanel.Dock="Right" Content="检查" Click="ExplainRoute" Margin="12,0,0,0" />
-                  <TextBox x:Name="ExplainInput" Text="example.com:443" />
+                  <TextBox x:Name="ExplainInput" Text="example.com:443" TextChanged="ExplainConditionsChanged" />
                 </DockPanel>
+                <Grid Margin="0,12,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="110"/></Grid.ColumnDefinitions>
+                  <StackPanel><TextBlock Text="模拟进程名 · 可留空" Style="{StaticResource Hint}" Margin="0,0,0,5"/><TextBox x:Name="ExplainProcess" TextChanged="ExplainConditionsChanged"/></StackPanel>
+                  <StackPanel Grid.Column="1" Margin="12,0,0,0"><TextBlock Text="传输协议" Style="{StaticResource Hint}" Margin="0,0,0,5"/><ComboBox x:Name="ExplainProtocol" SelectedIndex="0" SelectionChanged="ExplainConditionsChanged"><sys:String>tcp</sys:String><sys:String>udp</sys:String></ComboBox></StackPanel>
+                </Grid>
+                <Border x:Name="ExplainPath" Visibility="Collapsed" Background="#ECF1ED" Padding="14" Margin="0,14,0,0"><StackPanel>
+                  <TextBlock x:Name="ExplainPathText" FontWeight="SemiBold" TextWrapping="Wrap"/><TextBlock x:Name="ExplainPathFacts" Style="{StaticResource Hint}" Margin="0,8,0,0"/>
+                </StackPanel></Border>
                 <TextBlock x:Name="ExplainResult" Text="离线查看规则路径，无需启动引擎。" Style="{StaticResource Hint}" Margin="0,12,0,0" />
               </StackPanel>
             </Border>
@@ -554,9 +608,8 @@
               <StackPanel>
                 <DockPanel>
                   <Button DockPanel.Dock="Right" Content="编辑完整配置" Click="EditProfile" />
-                  <TextBlock Text="最终策略" FontWeight="SemiBold" VerticalAlignment="Center" />
+                  <TextBlock Text="高级配置" FontWeight="SemiBold" VerticalAlignment="Center" />
                 </DockPanel>
-                <ComboBox x:Name="FinalPolicy" Margin="0,16,0,0" SelectionChanged="FinalPolicyChanged" />
                 <TextBlock Text="自动策略组采用连续失败判断和切换冷却时间。需要直连备用时，必须显式加入 DIRECT。" Style="{StaticResource Hint}" Margin="0,12,0,0" />
               </StackPanel>
             </Border>

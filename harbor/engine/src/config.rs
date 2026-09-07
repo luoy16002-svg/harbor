@@ -22,6 +22,8 @@ pub struct Config {
     pub routing_mode: RoutingMode,
     #[serde(default)]
     pub direct_exceptions: crate::exceptions::DirectExceptions,
+    #[serde(default)]
+    pub traffic_routes: Vec<crate::traffic_routes::TrafficRoute>,
     pub max_connections: usize,
     pub connect_timeout_ms: u64,
     pub idle_timeout_secs: u64,
@@ -81,6 +83,7 @@ impl Default for Config {
             final_policy: "DIRECT".into(),
             routing_mode: RoutingMode::default(),
             direct_exceptions: Default::default(),
+            traffic_routes: vec![],
             max_connections: 2048,
             connect_timeout_ms: 8000,
             idle_timeout_secs: 300,
@@ -499,6 +502,7 @@ impl Config {
                 }
             }
         }
+        crate::traffic_routes::validate(self, &names)?;
         Ok(())
     }
 }

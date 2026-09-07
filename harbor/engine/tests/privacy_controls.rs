@@ -142,11 +142,13 @@ fn rehearsal_enforces_transport_protection_without_mutating_configuration() {
             host: "example.invalid".into(),
             port: 443,
             protocol: "tcp".into(),
+            process: None,
         },
         Target {
             host: "example.invalid".into(),
             port: 443,
             protocol: "udp".into(),
+            process: None,
         },
     ];
     let report = rehearsal::compare(&before, &after, &targets).unwrap();

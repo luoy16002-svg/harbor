@@ -39,14 +39,9 @@ impl DirectExceptions {
         if !self.enabled || host.parse::<IpAddr>().is_ok() {
             return false;
         }
-        let host = host.trim_end_matches('.').to_ascii_lowercase();
-        self.domains.iter().any(|domain| {
-            let domain = domain.trim_end_matches('.').to_ascii_lowercase();
-            host == domain
-                || host
-                    .strip_suffix(&domain)
-                    .is_some_and(|prefix| prefix.ends_with('.'))
-        })
+        self.domains
+            .iter()
+            .any(|domain| domain_matches(domain, host))
     }
 
     pub fn process_matches(&self, process: Option<&str>) -> bool {
@@ -57,6 +52,18 @@ impl DirectExceptions {
                     .any(|entry| entry.eq_ignore_ascii_case(name))
             })
     }
+}
+
+pub fn domain_matches(domain: &str, host: &str) -> bool {
+    if host.parse::<IpAddr>().is_ok() {
+        return false;
+    }
+    let host = host.trim_end_matches('.').to_ascii_lowercase();
+    let domain = domain.trim_end_matches('.').to_ascii_lowercase();
+    host == domain
+        || host
+            .strip_suffix(&domain)
+            .is_some_and(|prefix| prefix.ends_with('.'))
 }
 
 pub fn valid_domain(domain: &str) -> bool {

@@ -12,9 +12,11 @@ Switch between rule routing, one default outbound, and direct routing. Preview p
 
 Keep a global proxy while sending selected games and video services directly. [Direct exceptions](harbor/docs/direct-exceptions.md) match domain suffixes and locally identified Windows TCP/UDP processes, with editable Genshin / miHoYo and Bilibili presets.
 
+[Visual traffic paths](harbor/docs/traffic-paths.md) assign applications and websites to direct, a fixed proxy, a group, or the default outbound. Optional encryption requirements filter automatic groups separately for TCP and UDP and reject incompatible routes. The path checker evaluates simulated process matches offline. Capability notes explain DNS, TLS/WSS, and the limits of anonymity and IP reputation.
+
 Configuration changes retain up to ten encrypted earlier versions. Review differences and restore a version from settings while disconnected; the configuration before restoration is kept for undo.
 
-**Status:** 0.10.0 preview. The desktop UI is currently in Chinese. TUN support is experimental; live system-wide capture and recovery have not been validated for this release.
+**Status:** 0.11.0 preview. The desktop UI is currently in Chinese. TUN support is experimental; live system-wide capture and recovery have not been validated for this release.
 
 ## Build
 

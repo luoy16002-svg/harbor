@@ -14,7 +14,7 @@ The TCP dialer can retain up to 512 host-and-port hints in memory for five minut
 
 Request bodies are not logged. Diagnostic export contains summary fields. **Configuration export contains credentials.**
 
-Enabled process direct exceptions briefly read Windows endpoint ownership and executable image names for new flows. The engine retains no process or PID cache and adds no executable names or paths to connection records or diagnostic export. Hiding metadata still permits the transient lookup needed to choose a route. The configured domain and process lists are saved with the encrypted workspace and configuration history and appear in explicit configuration exports. No game hooks, code injection or privilege adjustment are used.
+Enabled process paths and direct exceptions briefly read Windows endpoint ownership and executable image names for new flows. The engine retains no process or PID cache and adds no looked-up executable names or paths to connection records or diagnostic export. User-defined traffic path names can appear in a route reason until metadata is hidden; do not put sensitive identifiers in a path name if those reasons will be shared. Hiding metadata still permits the transient lookup needed to choose a route. The configured domain and process lists are saved with the encrypted workspace and configuration history and appear in explicit configuration exports. No game hooks, code injection or privilege adjustment are used.
 
 HTTPS checks send a HEAD request through the selected proxy to `www.example.com`. Saved results contain the proxy name, a configuration fingerprint, outcome, duration, and timestamp. They contain no response body and can be cleared from the proxy page. Results older than 24 hours are marked for retesting.
 
@@ -24,7 +24,7 @@ Batch checks run only after a user action and cover the list captured when the a
 
 TLS verifies certificate chains and hostnames. A custom CA applies only to its configured proxy or DNS endpoint and is never installed in the Windows trust store.
 
-Plain HTTP CONNECT and SOCKS5 provide no transport encryption. SOCKS5 over TLS protects TCP; its standard UDP path is still unencrypted. The encrypted-transport option checks the actual forwarding path.
+Plain HTTP CONNECT and SOCKS5 provide no transport encryption. SOCKS5 over TLS protects TCP; its standard UDP path is still unencrypted. The encrypted-transport option checks the actual forwarding path. An individual traffic path can require an encrypted proxy even while global settings allow direct traffic elsewhere. Protected automatic groups filter members per TCP/UDP before selection; a fixed incompatible member or an exhausted protected group is rejected. This requirement applies to newly routed connections; existing sessions retain the old configuration. It does not change DNS provider trust, browser identity, or exit IP reputation. See [capabilities and research](traffic-paths.md).
 
 The option to block non-loopback DIRECT traffic applies to Harbor's forwarded connections. It is not a firewall and does not control other applications, DNS upstream traffic, health probes, or subscription downloads.
 

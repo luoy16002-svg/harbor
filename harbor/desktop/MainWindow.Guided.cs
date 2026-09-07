@@ -18,9 +18,10 @@ public partial class MainWindow
         {
             int count = (profile["nodes"] as JsonArray)?.Count ?? 0;
             bool direct = ProfileWorkflow.RoutingMode(profile) == "direct";
+            bool hasPaths = TrafficRoutes.Read(profile).Any(route => route.Enabled);
             bool needsNode = ProfileWorkflow.NeedsFirstNode(profile);
             HomePolicy.ItemsSource = Policies(); HomePolicy.SelectedItem = S(profile, "finalPolicy");
-            HomePolicy.IsEnabled = count > 0 && !direct && !busy;
+            HomePolicy.IsEnabled = count > 0 && (!direct || hasPaths) && !busy;
             string? previewPolicy = RehearsalPolicy.SelectedItem as string;
             var choices = Policies(); RehearsalPolicy.ItemsSource = choices;
             RehearsalPolicy.SelectedItem = choices.Contains(previewPolicy) ? previewPolicy : S(profile, "finalPolicy");
@@ -30,6 +31,7 @@ public partial class MainWindow
             HomeTitle.Text = running ? "连接已开启" : needsNode ? "从第一条线路开始" : "准备就绪";
             HomeDescription.Text = needsNode ? "粘贴订阅地址或分享链接，Harbor 会自动选中首条线路。" : direct ? "直连模式已就绪，无需添加代理线路。" : running ? "切换线路只影响新连接，已建立的连接保留原出口。" : $"已添加 {count} 条线路。选择出口后，点击右上角连接。";
             HomeDescription.Visibility = running ? Visibility.Collapsed : Visibility.Visible;
+            if (direct && hasPaths) HomeDescription.Text = "应用 / 网站路径优先生效，其余请求使用直连。";
             HeroStatusRow.Visibility = running ? Visibility.Collapsed : Visibility.Visible;
             ModeDescription.Text = HomeMode.SelectedIndex switch
             {
@@ -38,14 +40,15 @@ public partial class MainWindow
                 _ => App.Isolated ? "测试工作区只允许回环监听，系统代理、DNS 和路由写入已锁定。" : "仅指定代理地址的应用使用 Harbor，适合手动分应用配置。"
             };
             OnboardingSteps.Text = needsNode ? "① 添加线路     →     ② 选择出口     →     ③ 连接" : direct ? "全部直连     →     " + (running ? "已连接" : "待连接") : $"✓ {count} 条线路     →     {S(profile, "finalPolicy")}     →     {(running ? "已连接" : "待连接")}";
+            if (direct && hasPaths) OnboardingSteps.Text = "流量路径优先 → 其余直连 → " + (running ? "已连接" : "待连接");
             HomeAdd.Content = count == 0 ? "添加线路" : "添加更多";
             ConnectButton.Content = running ? "断开" : needsNode ? "添加线路" : "连接";
-            HomeVerify.IsEnabled = !direct && !busy && !verifying && profile["nodes"]!.AsArray().Any(v => S(v!, "name") == S(profile, "finalPolicy"));
+            HomeVerify.IsEnabled = (!direct || hasPaths) && !busy && !verifying && profile["nodes"]!.AsArray().Any(v => S(v!, "name") == S(profile, "finalPolicy"));
             var lastCheck = lineChecks.Get(profile, S(profile, "finalPolicy"));
             HomeCheckResult.Text = lastCheck?.Summary(DateTimeOffset.UtcNow) ?? "尚未验证";
             HomeCheckResult.ToolTip = lastCheck?.Detail;
             if (verifying) HomeCheckResult.Text = "线路验证进行中 · 可在线路页查看进度";
-            else if (direct) { HomeCheckResult.Text = "直连模式 · 默认出口暂不使用"; HomeCheckResult.ToolTip = null; }
+            else if (direct && !hasPaths) { HomeCheckResult.Text = "直连模式 · 默认出口暂不使用"; HomeCheckResult.ToolTip = null; }
             SyncVerificationControls();
             SyncSubscriptionControls();
             SyncRoutingControls();

@@ -165,6 +165,17 @@ async fn marker(stream: &mut TcpStream, expected: &[u8; 5]) {
 #[cfg(windows)]
 #[tokio::test]
 async fn actual_socks_and_connect_process_routes_preserve_old_flow_generation() {
+    actual_tcp_process_routes(false).await;
+}
+
+#[cfg(windows)]
+#[tokio::test]
+async fn traffic_paths_route_real_socks_and_connect_flows_by_process() {
+    actual_tcp_process_routes(true).await;
+}
+
+#[cfg(windows)]
+async fn actual_tcp_process_routes(traffic_path: bool) {
     tokio::time::timeout(Duration::from_secs(8), async {
         let direct = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let target = direct.local_addr().unwrap();
@@ -221,6 +232,19 @@ async fn actual_socks_and_connect_process_routes_preserve_old_flow_generation() 
                 .to_string_lossy()
                 .to_string(),
         ];
+        if traffic_path {
+            config
+                .traffic_routes
+                .push(harbor_engine::traffic_routes::TrafficRoute {
+                    name: "test application".into(),
+                    enabled: true,
+                    domains: vec![],
+                    processes: config.direct_exceptions.processes.clone(),
+                    policy: Some("DIRECT".into()),
+                    require_encrypted_proxy: false,
+                });
+            config.direct_exceptions.enabled = false;
+        }
         let engine = start(config).await;
         let mut old = socks(&engine, target, 1).await;
         marker(&mut old, b"DRECT").await;
@@ -242,6 +266,9 @@ async fn actual_socks_and_connect_process_routes_preserve_old_flow_generation() 
         assert_eq!(&bytes, b"DRECT");
         let mut updated = engine.current.load().config.clone();
         updated.direct_exceptions.enabled = false;
+        if let Some(route) = updated.traffic_routes.first_mut() {
+            route.enabled = false;
+        }
         assert_eq!(engine.configure(updated).unwrap(), 2);
         let mut new = socks(&engine, target, 1).await;
         marker(&mut new, b"PROXY").await;
@@ -277,6 +304,17 @@ async fn actual_socks_and_connect_process_routes_preserve_old_flow_generation() 
 #[cfg(windows)]
 #[tokio::test]
 async fn actual_socks_udp_uses_datagram_owner_and_unknown_sources_keep_global_policy() {
+    actual_udp_process_routes(false).await;
+}
+
+#[cfg(windows)]
+#[tokio::test]
+async fn traffic_paths_route_real_udp_datagrams_by_their_owner() {
+    actual_udp_process_routes(true).await;
+}
+
+#[cfg(windows)]
+async fn actual_udp_process_routes(traffic_path: bool) {
     tokio::time::timeout(Duration::from_secs(6), async {
         let echo = UdpSocket::bind("127.0.0.1:0").await.unwrap();
         let target = echo.local_addr().unwrap();
@@ -296,6 +334,19 @@ async fn actual_socks_udp_uses_datagram_owner_and_unknown_sources_keep_global_po
                 .to_string_lossy()
                 .to_string(),
         ];
+        if traffic_path {
+            config
+                .traffic_routes
+                .push(harbor_engine::traffic_routes::TrafficRoute {
+                    name: "test application".into(),
+                    enabled: true,
+                    domains: vec![],
+                    processes: config.direct_exceptions.processes.clone(),
+                    policy: Some("DIRECT".into()),
+                    require_encrypted_proxy: false,
+                });
+            config.direct_exceptions.enabled = false;
+        }
         let engine = start(config).await;
         let mut control = socks(&engine, "0.0.0.0:0".parse().unwrap(), 3).await;
         let mut reply = [0; 3];

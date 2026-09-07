@@ -1,5 +1,5 @@
 use crate::config::{Config, GroupKind, RoutingMode, RuleKind};
-use anyhow::{Result, bail};
+use anyhow::{Result, bail, ensure};
 use ipnet::IpNet;
 use serde::Serialize;
 use std::{
@@ -74,7 +74,7 @@ impl Health {
 #[derive(Default)]
 pub struct Selector {
     pub health: HashMap<String, Health>,
-    chosen: HashMap<String, (String, Instant)>,
+    chosen: HashMap<(String, bool, bool), (String, Instant)>,
 }
 impl Selector {
     pub fn reconcile(&mut self, config: &Config) {
@@ -85,7 +85,7 @@ impl Selector {
                 .entry(node.name.clone())
                 .or_insert_with(|| Health::new(&node.name));
         }
-        self.chosen.retain(|name, (node, _)| {
+        self.chosen.retain(|(name, _, _), (node, _)| {
             config
                 .groups
                 .iter()
@@ -99,16 +99,34 @@ impl Selector {
             .record(latency, now);
     }
     pub fn choose(&mut self, config: &Config, name: &str, now: Instant) -> Result<String> {
+        self.choose_guarded(config, name, now, false, "tcp")
+    }
+    pub fn choose_guarded(
+        &mut self,
+        config: &Config,
+        name: &str,
+        now: Instant,
+        encrypted: bool,
+        protocol: &str,
+    ) -> Result<String> {
         let Some(group) = config.groups.iter().find(|g| g.name == name) else {
             return Ok(name.into());
         };
         if group.kind == GroupKind::Select {
             return Ok(group.selected.as_ref().unwrap_or(&group.members[0]).clone());
         }
-        let usable = |n: &String| n == "DIRECT" || self.health.get(n).is_none_or(Health::usable);
+        let usable = |n: &String| {
+            (n == "DIRECT" || self.health.get(n).is_none_or(Health::usable))
+                && (!encrypted
+                    || config
+                        .nodes
+                        .iter()
+                        .find(|node| &node.name == n)
+                        .is_some_and(|node| crate::privacy::encrypted(node, protocol)))
+        };
         let candidates: Vec<_> = group.members.iter().filter(|n| usable(n)).collect();
         if candidates.is_empty() {
-            bail!("No healthy outbound in group {name}; direct fallback is disabled");
+            bail!("No healthy eligible outbound in group {name}; direct fallback is disabled");
         }
         let latency = |n: &str| {
             if n == "DIRECT" {
@@ -128,7 +146,8 @@ impl Selector {
         } else {
             candidates[0]
         };
-        if let Some((current, switched)) = self.chosen.get(name)
+        let key = (name.to_owned(), encrypted, encrypted && protocol == "udp");
+        if let Some((current, switched)) = self.chosen.get(&key)
             && candidates.contains(&current)
         {
             if group.kind == GroupKind::Fallback
@@ -147,7 +166,7 @@ impl Selector {
                 return Ok(current.clone());
             }
         }
-        self.chosen.insert(name.into(), (preferred.clone(), now));
+        self.chosen.insert(key, (preferred.clone(), now));
         Ok(preferred.clone())
     }
 }
@@ -187,6 +206,10 @@ pub fn decide_with_process(
     generation: u64,
 ) -> Result<Decision> {
     let (host, port, protocol) = target;
+    ensure!(
+        matches!(protocol, "tcp" | "udp"),
+        "Route protocol must be tcp or udp"
+    );
     let host = host.trim_end_matches('.').to_lowercase();
     if filter.blocked(&host) {
         return Ok(Decision {
@@ -220,7 +243,22 @@ pub fn decide_with_process(
     } else {
         None
     };
-    let (policy, reason, rule_index) = if config.direct_exceptions.domain_matches(&host) {
+    let route = config
+        .traffic_routes
+        .iter()
+        .find(|route| route.domain_matches(&host) || route.process_matches(process));
+    let protected = route.is_some_and(|route| route.require_encrypted_proxy);
+    let (policy, reason, rule_index) = if let Some(route) = route {
+        (
+            route
+                .policy
+                .as_ref()
+                .unwrap_or(&config.final_policy)
+                .clone(),
+            format!("PATH · {}", route.name),
+            None,
+        )
+    } else if config.direct_exceptions.domain_matches(&host) {
         ("DIRECT".into(), "EXCEPTION · Domain suffix".into(), None)
     } else if config.direct_exceptions.process_matches(process) {
         ("DIRECT".into(), "EXCEPTION · Local process".into(), None)
@@ -241,8 +279,27 @@ pub fn decide_with_process(
     } else {
         (config.final_policy.clone(), "FINAL".into(), None)
     };
-    let mut outbound = selector.choose(config, &policy, Instant::now())?;
     let mut reason = reason;
+    let mut outbound =
+        match selector.choose_guarded(config, &policy, Instant::now(), protected, protocol) {
+            Ok(outbound) => outbound,
+            Err(_) if protected => {
+                reason += " · Protection: no healthy encrypted outbound for this transport";
+                "REJECT".into()
+            }
+            Err(error) => return Err(error),
+        };
+    if protected
+        && outbound != "REJECT"
+        && config
+            .nodes
+            .iter()
+            .find(|node| node.name == outbound)
+            .is_none_or(|node| !crate::privacy::encrypted(node, protocol))
+    {
+        outbound = "REJECT".into();
+        reason += " · Protection: an encrypted proxy is required for this transport";
+    }
     if let Some(privacy_reason) = crate::privacy::rejection(config, &host, protocol, &outbound) {
         outbound = "REJECT".into();
         reason = privacy_reason.into();

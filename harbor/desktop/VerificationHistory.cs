@@ -59,7 +59,7 @@ internal sealed class VerificationHistory
         var context = new JsonObject();
         // These settings do not participate in explicit outbound HTTPS verification.
         foreach (var property in profile)
-            if (property.Key is not ("nodes" or "groups" or "rules" or "finalPolicy" or "routingMode" or "listen" or "dnsListen" or "tun")) context[property.Key] = property.Value?.DeepClone();
+            if (property.Key is not ("nodes" or "groups" or "rules" or "trafficRoutes" or "finalPolicy" or "routingMode" or "listen" or "dnsListen" or "tun")) context[property.Key] = property.Value?.DeepClone();
         return Hash(context);
     }
     private static string NodeFingerprint(string context, JsonNode node) => Hash(new JsonObject { ["context"] = context, ["outbound"] = node.DeepClone() });

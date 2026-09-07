@@ -1,6 +1,6 @@
 # Harbor
 
-A Windows proxy client with a Rust forwarding engine and a WPF desktop. This is the **0.10.0 preview**.
+A Windows proxy client with a Rust forwarding engine and a WPF desktop. This is the **0.11.0 preview**.
 
 ## Use
 
@@ -24,6 +24,7 @@ Upstream connections use a physical network adapter by default to avoid routing 
 - Routing rules, proxy groups, and offline comparisons of routing changes.
 - Saved routing modes: rules, one default outbound, or direct; live switching preserves established connections.
 - Domain and Windows process direct exceptions that also work with the global outbound; editable Genshin / miHoYo and Bilibili presets.
+- Visual application / website paths with fixed or grouped exits, optional encrypted-proxy requirements, and offline TCP/UDP/process checks.
 - DoH / DoT, local domain lists, and connection privacy controls.
 - Streaming dual-stack TCP setup, shared concurrent DNS queries, and bounded in-memory path hints.
 - Live traffic, connection details, tray actions, and proxy search.
@@ -36,7 +37,7 @@ On the proxies page, search or filter the list and choose the batch check action
 
 Sort by HTTPS elapsed time to put recent successful checks first, then select a proxy and use the existing set-as-outbound action. Harbor does not switch your outbound automatically. Each check sends one HTTPS HEAD request to `www.example.com` through the chosen proxy; measured time includes connection setup and the response, and does not measure download speed.
 
-In subscription management, check for updates to review added, changed, removed, and retained proxies. Proxies still referenced by an outbound, rule, or group remain available. Cancelling a download or declining its preview keeps the existing workspace. Connection controls remain available while downloading; disconnecting cancels the pending download first.
+In subscription management, check for updates to review added, changed, removed, and retained proxies. Proxies still referenced by an outbound, rule, traffic path, or group remain available. Cancelling a download or declining its preview keeps the existing workspace. Connection controls remain available while downloading; disconnecting cancels the pending download first.
 
 Usage and expiry come from the provider's optional `Subscription-Userinfo` header and include the time received. They are separate from Harbor's local traffic counters. Missing or malformed statistics are shown as unavailable; a zero total does not imply an unlimited plan. Updates are user initiated.
 
@@ -52,6 +53,8 @@ Choose a routing mode on the overview or routing page. Modes affect traffic ente
 | Global outbound (`global`) | Use the default outbound, including its selected group member, after checking enabled direct exceptions. |
 | Direct (`direct`) | Ignore routing rules and the default outbound and request a direct connection. No proxy import is required to connect. |
 
+The mode table describes requests after [traffic paths](docs/traffic-paths.md) and direct exceptions. Paths are ordered application / website cards with an explicit outbound and optional encrypted-proxy requirement; the first match wins. The path checker can simulate a process name and TCP or UDP without sending a request. New and existing workspaces have no paths until one is added.
+
 Local domain blocks and transport privacy restrictions apply in every mode. For example, direct mode rejects non-loopback traffic when blocking DIRECT is enabled. Rules and the selected default outbound stay saved when unused. Explicit proxy verification and background health probes still refer to the configured proxies.
 
 Switching modes updates new TCP connections and new UDP destination sessions; existing sessions keep their original configuration. The routing page can compare a candidate mode and default outbound offline without applying either. Changing the active configuration or preview inputs clears older comparison results. Old profiles without `routingMode` continue to use rules.
@@ -64,7 +67,7 @@ TCP setup starts from available DNS answers without waiting for a slow address f
 
 ## Limits
 
-TUN is experimental and requires administrator rights. Live system-wide capture, crash recovery, sleep recovery, and network switching have not been validated for this release. There is no system-wide kill switch. Process direct exceptions are best effort and do not control traffic that bypasses Harbor.
+TUN is experimental and requires administrator rights. Live system-wide capture, crash recovery, sleep recovery, and network switching have not been validated for this release. There is no system-wide kill switch. Process-based paths and direct exceptions are best effort and do not control traffic that bypasses Harbor.
 
 REALITY, Vision, gRPC, XHTTP, AnyTLS, Hysteria2, and TUIC are unsupported. A successful HTTPS check is a past result for one target, not a speed test or a guarantee that every destination works.
 
@@ -78,4 +81,4 @@ Requires Windows x64, Rust 1.95+, .NET SDK 9, and Python 3.11+.
 
 Add `-Visual` for isolated desktop checks or `-Interop` for local protocol interop. See [verification](docs/verification.md) for setup and test coverage.
 
-[Features](docs/features.md) · [Privacy](docs/privacy.md) · [Protocols](docs/protocols.md) · [Licenses](THIRD-PARTY.md)
+[Traffic paths and capability research](docs/traffic-paths.md) · [Features](docs/features.md) · [Privacy](docs/privacy.md) · [Protocols](docs/protocols.md) · [Licenses](THIRD-PARTY.md)
