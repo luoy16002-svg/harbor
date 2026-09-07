@@ -1,16 +1,16 @@
 # Verification
 
-These results apply to the 0.9.0 preview checked on 2026-09-07. They do not establish production readiness or carry over automatically to later builds.
+These results apply to the 0.10.0 preview checked on 2026-09-08. They do not establish production readiness or carry over automatically to later builds.
 
 | Check | Result | Scope |
 | --- | --- | --- |
-| Rust tests | 56 passed | Protocols, routing modes, packets, privacy precedence, encrypted DNS sharing, cancellation, dual-stack scheduling, and adapter selection |
-| Desktop checks | 59 passed | Imports, subscription headers and diffs, DPAPI, recovery, mode defaults, encrypted configuration history, restoration, bounded batch scheduling, and cancellation |
+| Rust tests | 64 passed | Protocols, routing modes, Windows TCP/UDP ownership and direct exceptions, packets, privacy precedence, encrypted DNS sharing, cancellation, dual-stack scheduling, and adapter selection |
+| Desktop checks | 63 passed | Imports, subscriptions, DPAPI, recovery, routing and direct exception parsing/presets, encrypted history, restoration, bounded batch scheduling, and cancellation |
 | Independent interop | 49 passed | Xray v26.3.27, TCP/UDP paths, 2 MiB payloads, delayed replies, source-port reuse, and concurrent connections |
 | Control interface | 13 passed | Isolation, preflight, stop, atomic configuration changes, targeted cancellation, and routing-mode changes over real TCP/UDP sessions |
 | Connection quality | 5 passed | Delayed DNS family, long address lists, concurrent query sharing, path memory and privacy, and first-answer preflight; release-engine comparison with 0.8.0 |
-| WPF workflows | 54 passed | Import, search, tray controls, HTTPS batches, subscription updates, mode selectors, configuration restoration, stale reviews, reconnect polling, and failed-save rollback |
-| Layout | Passed | Ten pages, five dialogs, 1280/980-pixel main windows, a 640-pixel subscription preview, and a 660-pixel history preview |
+| WPF workflows | 60 passed | Import, search, tray controls, HTTPS batches, subscription updates, mode selectors, direct exception presets/editor, configuration restoration, stale reviews, reconnect polling, and failed-save rollback |
+| Layout | Passed | Ten pages, six dialogs, 1280/980-pixel main windows, a 620-pixel exception editor, a 640-pixel subscription preview, and a 660-pixel history preview |
 | Build | Passed | Strict Clippy and desktop compilation without warnings |
 
 Dependency advisory queries returned no findings for the locked dependencies at the time of the check. This is not a security audit.
@@ -29,6 +29,10 @@ Configuration-history checks used isolated DPAPI workspaces. They verified autom
 
 A limited external forwarding check completed HTTPS requests through the release engine's SOCKS5 and HTTP CONNECT listeners. This does not establish compatibility with every proxy, destination, or network.
 
+A separate simultaneous check used the saved global routing configuration with direct exceptions and physical egress. A Bilibili HTTPS HEAD received a 302 response through `DIRECT`, while an example.com HTTPS HEAD received 200 through the selected proxy. Connection records confirmed both paths; the game-domain check was a route explanation only. The legacy default DNS configuration was upgraded through Harbor's existing DoH migration before the successful check. No Windows proxy, DNS or capture-route settings were changed.
+
+Direct exception checks use real Windows IPv4/IPv6 TCP and UDP endpoint tables, a local direct server, a local SOCKS proxy, and actual SOCKS5, HTTP CONNECT and SOCKS UDP ingress. Matching process traffic goes direct; disabling the exceptions sends new connections through the proxy while old streams keep their generation. Unknown owners retain the global policy, closed UDP bindings are not cached, conflicting owners are refused, and domain/transport privacy restrictions retain precedence. The WPF editor checks idempotent presets, save/cancel, invalid input, encrypted history, disabling and failed-save rollback. See [direct exceptions](direct-exceptions.md) for bounds and capture scope.
+
 ## Not validated
 
 - Live system-proxy writes and real recovery after process failure for this release.
@@ -37,7 +41,7 @@ A limited external forwarding check completed HTTPS requests through the release
 
 TUN packet handling and recovery state machines have isolated tests. Those tests do not replace live network validation.
 
-Harbor has no system-wide kill switch, per-app routing, installer, or automatic updater. Harbor executables are unsigned; the bundled Wintun driver is signed.
+Harbor has no system-wide kill switch, installer, or automatic updater. Process direct exceptions are best effort for captured traffic; they do not establish live game compatibility. Harbor executables are unsigned; the bundled Wintun driver is signed.
 
 ## Run checks
 

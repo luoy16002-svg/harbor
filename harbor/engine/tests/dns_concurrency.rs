@@ -54,7 +54,15 @@ where
         loop {
             tokio::select! {
                 packet = socket.recv_from(&mut bytes) => {
-                    let (length, peer) = packet.unwrap(); let request = Message::from_vec(&bytes[..length]).unwrap();
+                    let (length, peer) = match packet {
+                        Ok(packet) => packet,
+                        // A cancelled DNS caller can close before our delayed reply.
+                        // Windows reports that ICMP port-unreachable on the next
+                        // receive; it is not the end of this multi-client fixture.
+                        Err(error) if error.kind() == std::io::ErrorKind::ConnectionReset => continue,
+                        Err(error) => panic!("DNS fixture receive failed: {error}"),
+                    };
+                    let request = Message::from_vec(&bytes[..length]).unwrap();
                     observed.fetch_add(1, Ordering::SeqCst); let (delay, reply) = response(&request); let socket = socket.clone();
                     tasks.spawn(async move { tokio::time::sleep(delay).await; let _ = socket.send_to(&reply.to_vec().unwrap(), peer).await; });
                 }

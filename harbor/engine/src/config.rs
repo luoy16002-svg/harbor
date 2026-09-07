@@ -20,6 +20,8 @@ pub struct Config {
     pub final_policy: String,
     #[serde(default)]
     pub routing_mode: RoutingMode,
+    #[serde(default)]
+    pub direct_exceptions: crate::exceptions::DirectExceptions,
     pub max_connections: usize,
     pub connect_timeout_ms: u64,
     pub idle_timeout_secs: u64,
@@ -78,6 +80,7 @@ impl Default for Config {
             ],
             final_policy: "DIRECT".into(),
             routing_mode: RoutingMode::default(),
+            direct_exceptions: Default::default(),
             max_connections: 2048,
             connect_timeout_ms: 8000,
             idle_timeout_secs: 300,
@@ -237,6 +240,7 @@ pub enum RuleKind {
 impl Config {
     pub fn validate(&self) -> Result<()> {
         self.privacy.validate()?;
+        self.direct_exceptions.validate()?;
         ensure!(
             self.version == 1,
             "Unsupported profile version: {}",

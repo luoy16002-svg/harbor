@@ -51,6 +51,7 @@ pub struct Engine {
     pub flow_cancel: Mutex<HashMap<u64, CancellationToken>>,
     pub started: Instant,
     pub capacity: Arc<tokio::sync::Semaphore>,
+    process_resolver: crate::process::Resolver,
     #[cfg(windows)]
     pub tun: Mutex<Option<crate::native_tun::TunHandle>>,
 }
@@ -88,6 +89,7 @@ impl Engine {
             flow_cancel: Mutex::new(HashMap::new()),
             started: Instant::now(),
             capacity,
+            process_resolver: Default::default(),
             #[cfg(windows)]
             tun: Mutex::new(None),
         });
@@ -205,6 +207,32 @@ impl Engine {
             snapshot.generation,
         )
     }
+    pub async fn decision_for_source(
+        &self,
+        snapshot: &RuntimeConfig,
+        target: (&str, u16, &str),
+        source: Option<crate::process::Source>,
+    ) -> Result<Decision> {
+        let exceptions = &snapshot.config.direct_exceptions;
+        let process = if exceptions.enabled
+            && !exceptions.processes.is_empty()
+            && !exceptions.domain_matches(target.0)
+            && !snapshot.filter.blocked(target.0)
+            && let Some(source) = source
+        {
+            self.process_resolver.name(source).await
+        } else {
+            None
+        };
+        policy::decide_with_process(
+            &snapshot.config,
+            &mut self.selector.lock().unwrap(),
+            &snapshot.filter,
+            target,
+            process.as_deref(),
+            snapshot.generation,
+        )
+    }
     pub fn close_flow(&self, id: u64) -> bool {
         if let Some(token) = self.flow_cancel.lock().unwrap().get(&id) {
             token.cancel();
@@ -299,7 +327,16 @@ impl Engine {
             .try_acquire_owned()
             .context("Active flow limit reached")?;
         let current = self.current.load_full();
-        let decision = self.decision(&current, &host, port, "udp")?;
+        let decision = self
+            .decision_for_source(
+                &current,
+                (&host, port, "udp"),
+                source
+                    .parse()
+                    .ok()
+                    .map(|local| crate::process::Source::Udp { local }),
+            )
+            .await?;
         let mut flow = self.telemetry.begin(&host, port, "UDP", &source, &decision);
         flow.active();
         let token = self.cancel.child_token();
@@ -378,7 +415,16 @@ impl Engine {
         source: &str,
     ) -> Result<(String, u16, Vec<u8>)> {
         let current = self.current.load_full();
-        let decision = self.decision(&current, host, port, "udp")?;
+        let decision = self
+            .decision_for_source(
+                &current,
+                (host, port, "udp"),
+                source
+                    .parse()
+                    .ok()
+                    .map(|local| crate::process::Source::Udp { local }),
+            )
+            .await?;
         let mut flow = self.telemetry.begin(host, port, "UDP", source, &decision);
         flow.active();
         flow.add(data.len() as u64, 0);

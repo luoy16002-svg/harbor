@@ -16,6 +16,8 @@ public partial class MainWindow
             string mode = ProfileWorkflow.RoutingMode(profile);
             string label = ProfileWorkflow.RoutingLabel(profile);
             string[] labels = ProfileWorkflow.RoutingModes.Select(value => value.Label).ToArray();
+            var exceptions = DirectExceptions.Read(profile);
+            DirectExceptionSummary.Text = "直连例外：" + exceptions.Summary;
             HomeRoutingMode.ItemsSource ??= labels; RoutingModeInput.ItemsSource ??= labels;
             RehearsalRoutingMode.ItemsSource ??= labels;
             HomeRoutingMode.SelectedItem = RoutingModeInput.SelectedItem = label;
@@ -23,9 +25,9 @@ public partial class MainWindow
             HomeRoutingMode.IsEnabled = RoutingModeInput.IsEnabled = !busy && client != null;
             string description = mode switch
             {
-                "global" => "忽略分流规则，所有请求使用默认出口。",
+                "global" => exceptions.Enabled ? "指定例外直连，其余请求全部使用默认出口。" : "忽略分流规则，所有请求使用默认出口。",
                 "direct" => "忽略分流规则，所有请求使用直连。",
-                _ => "按顺序匹配规则，未命中时使用默认出口。"
+                _ => exceptions.Enabled ? "先检查直连例外，再按顺序匹配规则，未命中时使用默认出口。" : "按顺序匹配规则，未命中时使用默认出口。"
             };
             bool directBlocked = mode == "direct" && profile["privacy"]?["blockDirect"]?.GetValue<bool>() == true;
             HomeRoutingDescription.Text = directBlocked ? "当前隐私设置禁止非回环直连。" : description;

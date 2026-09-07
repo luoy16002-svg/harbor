@@ -14,6 +14,8 @@ The TCP dialer can retain up to 512 host-and-port hints in memory for five minut
 
 Request bodies are not logged. Diagnostic export contains summary fields. **Configuration export contains credentials.**
 
+Enabled process direct exceptions briefly read Windows endpoint ownership and executable image names for new flows. The engine retains no process or PID cache and adds no executable names or paths to connection records or diagnostic export. Hiding metadata still permits the transient lookup needed to choose a route. The configured domain and process lists are saved with the encrypted workspace and configuration history and appear in explicit configuration exports. No game hooks, code injection or privilege adjustment are used.
+
 HTTPS checks send a HEAD request through the selected proxy to `www.example.com`. Saved results contain the proxy name, a configuration fingerprint, outcome, duration, and timestamp. They contain no response body and can be cleared from the proxy page. Results older than 24 hours are marked for retesting.
 
 Batch checks run only after a user action and cover the list captured when the action starts, with at most two requests at a time. Cancelling stops the remaining work and closes active verification connections. It keeps completed results and does not record unfinished checks as failures or stop normal proxy connections.
@@ -27,6 +29,8 @@ Plain HTTP CONNECT and SOCKS5 provide no transport encryption. SOCKS5 over TLS p
 The option to block non-loopback DIRECT traffic applies to Harbor's forwarded connections. It is not a firewall and does not control other applications, DNS upstream traffic, health probes, or subscription downloads.
 
 Routing modes do not disable local domain blocking or transport restrictions. Direct mode requests a direct path and can still be rejected by the configured privacy settings. A mode change applies to new TCP connections and new UDP destination sessions; existing sessions keep their original route. The offline mode comparison sends no network requests and does not save its candidate configuration.
+
+Enabled direct exceptions are evaluated before the selected mode and ordinary rules. They preserve domain blocking and transport restrictions. Unknown or ambiguous process ownership retains ordinary routing. These exceptions control only traffic entering Harbor; they do not implement a firewall or change DNS providers. See [direct exceptions](direct-exceptions.md).
 
 DoH and DoT do not silently downgrade to plaintext. New workspaces try AliDNS DoH, then Cloudflare DoH. The selected resolver can see query names and source IPs. Users can choose one provider or configure a custom endpoint.
 

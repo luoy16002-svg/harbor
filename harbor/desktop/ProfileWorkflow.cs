@@ -8,7 +8,7 @@ namespace Harbor;
 internal static class ProfileWorkflow
 {
     public static readonly (string Key, string Label)[] RoutingModes =
-    [("rules", "按规则"), ("global", "统一出口"), ("direct", "全部直连")];
+    [("rules", "按规则"), ("global", "全局出口"), ("direct", "全部直连")];
     public static string RoutingMode(JsonObject profile) => profile["routingMode"]?.GetValue<string>() ?? "rules";
     public static string RoutingLabel(JsonObject profile) => RoutingModes.First(v => v.Key == RoutingMode(profile)).Label;
     public static string RoutingKey(string label) => RoutingModes.First(v => v.Label == label).Key;

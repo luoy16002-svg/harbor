@@ -55,6 +55,7 @@ internal static class WorkspaceHistory
         if (state.Profile["routingMode"] != null &&
             (state.Profile["routingMode"] is not JsonValue mode || !mode.TryGetValue<string>(out string? name) || name is not ("rules" or "global" or "direct")))
             throw new InvalidDataException("配置历史中的分流模式无效。");
+        DirectExceptions.Read(state.Profile);
     }
 
     internal static WorkspaceState Clone(WorkspaceState value) => new(value.Profile.DeepClone().AsObject(),
@@ -130,10 +131,12 @@ internal static class WorkspaceHistory
             changes.Add(new("默认出口", "修改", (current.Profile["finalPolicy"]?.GetValue<string>() ?? "DIRECT") + " → " + (saved.Profile["finalPolicy"]?.GetValue<string>() ?? "DIRECT")));
         if (!JsonNode.DeepEquals(current.Profile["rules"], saved.Profile["rules"]))
             changes.Add(new("分流规则", "修改", $"{(current.Profile["rules"] as JsonArray)?.Count ?? 0} 条 → {(saved.Profile["rules"] as JsonArray)?.Count ?? 0} 条；规则内容、启用状态或顺序有变化。"));
+        if (!JsonNode.DeepEquals(current.Profile["directExceptions"], saved.Profile["directExceptions"]))
+            changes.Add(new("直连例外", "修改", DirectExceptions.Read(current.Profile).Summary + " → " + DirectExceptions.Read(saved.Profile).Summary));
         foreach (var group in new[] { ("DNS", new[] { "dnsServers", "dnsTls", "dnsListen", "fakeIp" }), ("隐私保护", new[] { "privacy" }),
             ("监听与网络", new[] { "listen", "tun", "egressMode", "tunName", "tunAddress" }) })
             if (group.Item2.Any(key => !JsonNode.DeepEquals(current.Profile[key], saved.Profile[key]))) changes.Add(new(group.Item1, "修改", "恢复该部分的历史设置。"));
-        string[] known = ["nodes", "groups", "rules", "routingMode", "finalPolicy", "dnsServers", "dnsTls", "dnsListen", "fakeIp", "privacy", "listen", "tun", "egressMode", "tunName", "tunAddress"];
+        string[] known = ["nodes", "groups", "rules", "routingMode", "directExceptions", "finalPolicy", "dnsServers", "dnsTls", "dnsListen", "fakeIp", "privacy", "listen", "tun", "egressMode", "tunName", "tunAddress"];
         if (current.Profile.Select(pair => pair.Key).Union(saved.Profile.Select(pair => pair.Key)).Except(known).Any(key => !JsonNode.DeepEquals(current.Profile[key], saved.Profile[key])))
             changes.Add(new("其他配置", "修改", "其他配置参数有变化。"));
         foreach (var entry in current.Subscriptions)

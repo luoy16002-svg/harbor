@@ -92,7 +92,7 @@ public partial class MainWindow
             {
                 HomeRoutingMode.SelectedItem = "全部直连";
                 for (int index = 0; busy && index < 200; index++) await Task.Delay(10);
-                Require(!busy && Saved().SequenceEqual(disk) && JsonNode.DeepEquals(profile, before.Profile) && (string?)HomeRoutingMode.SelectedItem == "统一出口" &&
+                Require(!busy && Saved().SequenceEqual(disk) && JsonNode.DeepEquals(profile, before.Profile) && (string?)HomeRoutingMode.SelectedItem == "全局出口" &&
                     S(await client.CallAsync("snapshot"), "routingMode") == "global", "failed history write did not roll back disk, desktop and running mode");
             }
             finally { File.SetAttributes(WorkspaceHistory.FilePath, FileAttributes.Normal); }

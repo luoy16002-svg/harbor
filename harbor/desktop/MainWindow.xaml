@@ -22,7 +22,7 @@
             <Ellipse x:Name="StatusDot" Width="6" Height="6" Fill="#94A29A" Margin="0,0,7,0" />
             <TextBlock x:Name="SidebarStatus" Text="引擎未启动" FontSize="11" Foreground="#65776D" />
           </StackPanel>
-          <TextBlock Text="0.9.0 · Windows x64" Margin="12,0,0,0" FontSize="10" Foreground="#65776D" />
+          <TextBlock Text="0.10.0 · Windows x64" Margin="12,0,0,0" FontSize="10" Foreground="#65776D" />
         </StackPanel>
         <StackPanel>
           <Button x:Name="NavOverview" Style="{StaticResource Nav}" Tag="Overview" Click="Navigate" Background="#DFE9E4">
@@ -473,6 +473,7 @@
               <StackPanel>
                 <DockPanel><TextBlock Text="当前分流模式" Style="{StaticResource Section}" VerticalAlignment="Center" Margin="0,0,18,0"/><ComboBox x:Name="RoutingModeInput" SelectionChanged="RoutingModeChanged" Width="180" HorizontalAlignment="Left"/></DockPanel>
                 <TextBlock x:Name="RoutingModeDescription" Style="{StaticResource Hint}" Margin="0,12,0,0"/>
+                <DockPanel Margin="0,16,0,0"><Button DockPanel.Dock="Right" Content="编辑直连例外" Click="EditDirectExceptions" Margin="12,0,0,0"/><TextBlock x:Name="DirectExceptionSummary" Style="{StaticResource Hint}" VerticalAlignment="Center"/></DockPanel>
               </StackPanel>
             </Border>
             <Border Style="{StaticResource Panel}" Margin="0,0,0,16">

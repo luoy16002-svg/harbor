@@ -1,22 +1,22 @@
 # TCP connection quality
 
-Harbor 0.9.0 changes the shared TCP setup path used for direct forwarding, upstream proxy sockets, and TCP health probes. It addresses two specific delays: waiting for both DNS families before trying any address, and spending the entire attempt budget on IPv4 addresses before reaching a working IPv6 address. It also shares duplicate concurrent DNS questions. Proxy authentication, TLS, and application data start after a single TCP winner is selected.
+Since 0.9.0, Harbor uses a shared TCP setup path for direct forwarding, upstream proxy sockets, and TCP health probes. It addresses two specific delays: waiting for both DNS families before trying any address, and spending the entire attempt budget on IPv4 addresses before reaching a working IPv6 address. It also shares duplicate concurrent DNS questions. Proxy authentication, TLS, and application data start after a single TCP winner is selected.
 
-## Release comparison on 2026-09-07
+## Release comparison on 2026-09-08
 
 Both executables were optimized Windows x64 release builds, measured on the same machine with the local fixtures below. No external proxy or public DNS service was involved in these measurements.
 
-| Fixture | 0.8.0 | 0.9.0 |
+| Fixture | 0.8.0 | 0.10.0 |
 | --- | --- | --- |
-| AAAA delayed 1,200 ms; 7 connections | Median 1,226.92 ms; p95 1,244.92 ms; 7/7 completed | Median 77.51 ms; p95 78.52 ms; 7/7 completed |
-| Eight unusable A records and usable IPv6; 3 connections | 0/3 completed | 3/3 completed; median 16.36 ms |
+| AAAA delayed 1,200 ms; 7 connections | Median 1,228.30 ms; p95 1,244.11 ms; 7/7 completed | Median 78.65 ms; p95 94.60 ms; 7/7 completed |
+| Eight unusable A records and usable IPv6; 3 connections | 0/3 completed | 3/3 completed; median 16.06 ms |
 | 32 simultaneous connections, 200 ms DNS delay | 64 upstream DNS queries; 32/32 completed | 2 upstream DNS queries; 62 shared joins; 32/32 completed |
-| Same 32-connection burst, connection time | Median 224.21 ms; p95 227.06 ms | Median 220.76 ms; p95 223.86 ms |
-| Preflight with delayed AAAA; one sample | 1,206.21 ms | 6.38 ms |
+| Same 32-connection burst, connection time | Median 225.67 ms; p95 228.64 ms | Median 219.84 ms; p95 222.59 ms |
+| Preflight with delayed AAAA; one sample | 1,209.38 ms | 5.99 ms |
 
 The burst reduces duplicate DNS work; its connection latency is similar because each caller still needs the first answer. Path-memory checks started two attempts on the first connection, one on the second, and two again after clearing DNS. Enabling metadata hiding left zero remembered paths. After each traffic scenario, the new engine reported zero active dials, active TCP attempts, and pending shared DNS questions.
 
-The evidence records SHA-256 `9fab02f243337b51d50dccea2065b45cebcf1956bf851fafaf2c831af2ce1542` for the 0.8.0 engine and `5eb96c8f3c77590fc40d1d36c8fa7977d921544a1b31578c58f1f2b5e08f47b8` for 0.9.0. These controlled faults establish behavior in the tested scenarios, not general internet latency, throughput, or long-term network reliability.
+The evidence records SHA-256 `9fab02f243337b51d50dccea2065b45cebcf1956bf851fafaf2c831af2ce1542` for the 0.8.0 engine and `b8d67413042362143851bcfd3bae0057f04f6e3fba6d561c4e072b96d4cfea7d` for 0.10.0. These controlled faults establish behavior in the tested scenarios, not general internet latency, throughput, or long-term network reliability.
 
 ## Scheduling and bounds
 
@@ -41,7 +41,7 @@ The DNS snapshot exposes `coalesced` (joins to shared work), `upstreamQueries` (
 The fixture uses local UDP DNS, a local SOCKS5 listener, and IPv4/IPv6 loopback echo servers. It sends no external requests and runs the engine with system-network writes disabled. Both loopback families must be available. It measures SOCKS CONNECT through receipt of an echoed payload, excluding the initial SOCKS greeting.
 
 ```powershell
-python tests/connection_quality.py --engine dist/Harbor-0.9.0-preview-win-x64/harbor-engine.exe --baseline path/to/Harbor-0.8.0/harbor-engine.exe
+python tests/connection_quality.py --engine dist/Harbor-0.10.0-preview-win-x64/harbor-engine.exe --baseline path/to/Harbor-0.8.0/harbor-engine.exe
 ```
 
 The normal build runs all five scenarios against the packaged engine. Set `HARBOR_BASELINE_ENGINE` to an earlier executable before building to include a comparison. Each scenario uses a fresh engine. Slow-family and long-list samples use unique names and zero-TTL replies; the concurrent burst and hint scenario deliberately use caching. The report records both engine hashes in `.cache/connection-quality.json`, and matching evidence is included in the Windows package.

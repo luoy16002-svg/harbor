@@ -274,12 +274,23 @@ async fn forward(engine: Arc<Engine>, mut local: DuplexStream, endpoints: Endpoi
             });
         }
     }
-    let decision = engine.decision(
-        &current,
-        name.as_deref().unwrap_or(&destination),
-        endpoints.destination_port,
-        "tcp",
-    )?;
+    let decision = engine
+        .decision_for_source(
+            &current,
+            (
+                name.as_deref().unwrap_or(&destination),
+                endpoints.destination_port,
+                "tcp",
+            ),
+            Some(crate::process::Source::Tcp {
+                local: std::net::SocketAddr::new(endpoints.source.into(), endpoints.source_port),
+                remote: std::net::SocketAddr::new(
+                    endpoints.destination.into(),
+                    endpoints.destination_port,
+                ),
+            }),
+        )
+        .await?;
     let mut flow = engine.telemetry.begin(
         name.as_deref().unwrap_or(&destination),
         endpoints.destination_port,
@@ -451,7 +462,7 @@ pub async fn run(
                     let e = engine.clone();
                     let output = udp_reply.clone();
                     let token = cancel.clone();
-                    tasks.spawn(async move{let receiver=async{while let Some(packet)=replies.recv().await{if output.send((key,packet.data)).await.is_err(){break;}}};tokio::select!{_=receiver=>{},_=e.udp_session(key.destination.to_string(),key.destination_port,format!("{}:{}",key.source,key.source_port),receive,reply,token)=>{}}});
+                    tasks.spawn(async move{let receiver=async{while let Some(packet)=replies.recv().await{if output.send((key,packet.data)).await.is_err(){break;}}};tokio::select!{_=receiver=>{},_=e.udp_session(key.destination.to_string(),key.destination_port,std::net::SocketAddr::new(key.source.into(),key.source_port).to_string(),receive,reply,token)=>{}}});
                 }
                 if let Some(sender) = udp_sessions.get(&key) {
                     let _ = sender.try_send(bytes.to_vec());

@@ -1,6 +1,6 @@
 # Harbor
 
-A Windows proxy client with a Rust forwarding engine and a WPF desktop. This is the **0.9.0 preview**.
+A Windows proxy client with a Rust forwarding engine and a WPF desktop. This is the **0.10.0 preview**.
 
 ## Use
 
@@ -23,6 +23,7 @@ Upstream connections use a physical network adapter by default to avoid routing 
 - Clash YAML, Base64 link collections, SIP008, and Harbor JSON imports.
 - Routing rules, proxy groups, and offline comparisons of routing changes.
 - Saved routing modes: rules, one default outbound, or direct; live switching preserves established connections.
+- Domain and Windows process direct exceptions that also work with the global outbound; editable Genshin / miHoYo and Bilibili presets.
 - DoH / DoT, local domain lists, and connection privacy controls.
 - Streaming dual-stack TCP setup, shared concurrent DNS queries, and bounded in-memory path hints.
 - Live traffic, connection details, tray actions, and proxy search.
@@ -48,12 +49,14 @@ Choose a routing mode on the overview or routing page. Modes affect traffic ente
 | Mode | New connections |
 | --- | --- |
 | Rules (`rules`, the default) | Match enabled rules in order, then use the default outbound. |
-| Single outbound (`global`) | Ignore routing rules and use the default outbound, including its selected group member. |
+| Global outbound (`global`) | Use the default outbound, including its selected group member, after checking enabled direct exceptions. |
 | Direct (`direct`) | Ignore routing rules and the default outbound and request a direct connection. No proxy import is required to connect. |
 
 Local domain blocks and transport privacy restrictions apply in every mode. For example, direct mode rejects non-loopback traffic when blocking DIRECT is enabled. Rules and the selected default outbound stay saved when unused. Explicit proxy verification and background health probes still refer to the configured proxies.
 
 Switching modes updates new TCP connections and new UDP destination sessions; existing sessions keep their original configuration. The routing page can compare a candidate mode and default outbound offline without applying either. Changing the active configuration or preview inputs clears older comparison results. Old profiles without `routingMode` continue to use rules.
+
+Use the direct exception editor for games and video while keeping a global proxy for everything else. Domain suffixes and locally identified Windows processes can request direct routing before the mode or ordinary rules. The presets are editable and opt-in. Process rules only affect captured traffic, and failed ownership lookup keeps the normal route. See [direct exceptions](docs/direct-exceptions.md) for capture requirements, privacy, bounds and verification.
 
 New workspaces use AliDNS DoH first and Cloudflare DoH as a fallback. Certificates are verified; encrypted DNS does not silently fall back to plaintext. DNS settings can select a different provider or custom endpoint.
 
@@ -61,7 +64,7 @@ TCP setup starts from available DNS answers without waiting for a slow address f
 
 ## Limits
 
-TUN is experimental and requires administrator rights. Live system-wide capture, crash recovery, sleep recovery, and network switching have not been validated for this release. There is no system-wide kill switch or per-app routing.
+TUN is experimental and requires administrator rights. Live system-wide capture, crash recovery, sleep recovery, and network switching have not been validated for this release. There is no system-wide kill switch. Process direct exceptions are best effort and do not control traffic that bypasses Harbor.
 
 REALITY, Vision, gRPC, XHTTP, AnyTLS, Hysteria2, and TUIC are unsupported. A successful HTTPS check is a past result for one target, not a speed test or a guarantee that every destination works.
 

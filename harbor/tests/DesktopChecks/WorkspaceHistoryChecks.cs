@@ -98,7 +98,7 @@ internal static class WorkspaceHistoryChecks
             current.Profile["nodes"]![0]!["password"] = "another-private-password"; current.Profile["nodes"]![0]!["server"] = "private-server.fixture.invalid";
             current.Profile["routingMode"] = "global"; current.Subscriptions[0] = current.Subscriptions[0] with { Url = "https://feed.fixture.invalid/another-private-token" };
             var changes = WorkspaceHistory.Compare(current, old); string text = JsonSerializer.Serialize(changes, new JsonSerializerOptions { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
-            Assert(changes.Count == 3 && text.Contains("认证信息") && text.Contains("订阅地址") && text.Contains("统一出口"));
+            Assert(changes.Count == 3 && text.Contains("认证信息") && text.Contains("订阅地址") && text.Contains("全局出口"));
             foreach (string secret in new[] { "another-private", "history-private", "private-server", "https://" }) Assert(!text.Contains(secret));
             Assert(!WorkspaceHistory.SameConfiguration(current, old) && WorkspaceHistory.Compare(old, old).Count == 0);
         });

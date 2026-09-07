@@ -175,6 +175,17 @@ pub fn decide_filtered(
     target: (&str, u16, &str),
     generation: u64,
 ) -> Result<Decision> {
+    decide_with_process(config, selector, filter, target, None, generation)
+}
+
+pub fn decide_with_process(
+    config: &Config,
+    selector: &mut Selector,
+    filter: &crate::privacy::DomainFilter,
+    target: (&str, u16, &str),
+    process: Option<&str>,
+    generation: u64,
+) -> Result<Decision> {
     let (host, port, protocol) = target;
     let host = host.trim_end_matches('.').to_lowercase();
     if filter.blocked(&host) {
@@ -209,7 +220,11 @@ pub fn decide_filtered(
     } else {
         None
     };
-    let (policy, reason, rule_index) = if config.routing_mode == RoutingMode::Direct {
+    let (policy, reason, rule_index) = if config.direct_exceptions.domain_matches(&host) {
+        ("DIRECT".into(), "EXCEPTION · Domain suffix".into(), None)
+    } else if config.direct_exceptions.process_matches(process) {
+        ("DIRECT".into(), "EXCEPTION · Local process".into(), None)
+    } else if config.routing_mode == RoutingMode::Direct {
         ("DIRECT".into(), "MODE · Direct".into(), None)
     } else if config.routing_mode == RoutingMode::Global {
         (

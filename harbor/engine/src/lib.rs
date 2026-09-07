@@ -6,6 +6,7 @@ pub mod dns;
 mod dns_flight;
 mod dns_https;
 pub mod engine;
+pub mod exceptions;
 pub mod inbound;
 #[cfg(windows)]
 pub mod native_tun;
@@ -13,6 +14,7 @@ pub mod net;
 pub mod packet;
 pub mod policy;
 pub mod privacy;
+pub mod process;
 pub mod rehearsal;
 pub mod shadowsocks;
 pub mod ss2022;

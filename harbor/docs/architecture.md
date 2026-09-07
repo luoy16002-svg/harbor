@@ -12,7 +12,9 @@ A quiet, native desktop utility: readable tables, useful detail panels, restrain
 
 The engine's stdin/stdout is newline-delimited JSON with request IDs. Stdout contains protocol messages only. Stdin closure cancels the engine. No externally reachable administrative API.
 
-The optional `routingMode` configuration field defaults to `rules` for existing workspaces. A local domain block is evaluated first. In rules mode, the first matching enabled rule or `finalPolicy` chooses a policy. In `global` mode, `finalPolicy` chooses it directly. In `direct` mode, the policy is `DIRECT`. Group selection and transport privacy rejection follow. Non-rule modes retain and validate the saved rules and references. The snapshot exposes the active mode.
+The optional `routingMode` configuration field defaults to `rules` for existing workspaces. A local domain block is evaluated first, then enabled domain/process `directExceptions`. An exception requests `DIRECT`; otherwise the mode is evaluated. In rules mode, the first matching enabled rule or `finalPolicy` chooses a policy. In `global` mode, `finalPolicy` chooses it. In `direct` mode, the policy is `DIRECT`. Group selection and transport privacy rejection follow. Non-rule modes retain and validate the saved rules and references. The snapshot exposes the active mode.
+
+Windows process exceptions use read-only endpoint ownership tables and limited image queries. TCP uses a full connection tuple; UDP uses the datagram binding, refusing conflicting owners. Source context comes from accepted sockets or packet endpoints, never from an asserted process name in proxy input. Four bounded blocking jobs serve new flows with a 250 ms caller deadline; timed-out work holds its permit until completion. There is no PID or executable cache. Missing ownership uses the existing mode. See [direct exceptions](direct-exceptions.md) for precise bounds, capture limitations and tests.
 
 Mode changes use the existing immutable configuration generations. New TCP connections and new UDP destination sessions use the new generation; existing flows keep theirs. Desktop selections are synchronized with the saved profile, and a persistence failure rolls runtime routing back before returning an error. Direct-mode startup skips DNS preflight for the unused default proxy. Explicit proxy checks remain independent of routing mode, so mode selection does not invalidate their saved results.
 
@@ -67,4 +69,4 @@ Each immutable runtime configuration carries a compiled domain filter. Network-a
 
 The rehearsal IPC validates two candidate configurations and compares target decisions using fresh selectors, without DNS, health probes or listeners. Its response explicitly reports `offline`, `networkRequests: 0` and `healthMeasured: false`. The UI's candidate editor exposes routing/privacy fields without exposing node credentials.
 
-The UI uses custom WindowChrome, a consistent scroll theme, measured traffic timestamps and an offline adapter inventory. No process-aware routing or full-device firewall is implied by the network page.
+The UI uses custom WindowChrome, a consistent scroll theme, measured traffic timestamps and an offline adapter inventory. The network page is an inventory; process direct exceptions are configured separately in routing and do not implement a full-device firewall.

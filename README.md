@@ -10,9 +10,11 @@ Subscriptions show provider usage and expiry when available. Updates include a c
 
 Switch between rule routing, one default outbound, and direct routing. Preview path changes offline before selecting a mode; established connections keep their original route.
 
+Keep a global proxy while sending selected games and video services directly. [Direct exceptions](harbor/docs/direct-exceptions.md) match domain suffixes and locally identified Windows TCP/UDP processes, with editable Genshin / miHoYo and Bilibili presets.
+
 Configuration changes retain up to ten encrypted earlier versions. Review differences and restore a version from settings while disconnected; the configuration before restoration is kept for undo.
 
-**Status:** 0.9.0 preview. The desktop UI is currently in Chinese. TUN support is experimental; live system-wide capture and recovery have not been validated for this release.
+**Status:** 0.10.0 preview. The desktop UI is currently in Chinese. TUN support is experimental; live system-wide capture and recovery have not been validated for this release.
 
 ## Build
 

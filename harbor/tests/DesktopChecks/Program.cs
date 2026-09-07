@@ -312,6 +312,7 @@ Check("Legacy routing stays rule-based and direct mode can start without importi
     value["nodes"] = new JsonArray(new JsonObject { ["name"] = "fixture" }); Assert(!ProfileWorkflow.NeedsFirstNode(value));
 });
 WorkspaceHistoryChecks.Run(Check);
+DirectExceptionChecks.Run(Check);
 Console.WriteLine($"{passed} checks passed.");
 
 internal sealed class FakeStore(ProxySettings current):IProxyStore

@@ -74,10 +74,10 @@ public partial class MainWindow
             }
 
             ulong directGeneration = N(await client.CallAsync("snapshot"), "generation");
-            RoutingModeInput.SelectedItem = "统一出口"; await Settled();
+            RoutingModeInput.SelectedItem = "全局出口"; await Settled();
             var global = await Explain("localhost");
             Require(S(global, "outbound") == "本机分流测试线路" && global["ruleIndex"] == null && N(global, "generation") > directGeneration, "global mode did not override the localhost rule with the selected group");
-            Require((string?)HomeRoutingMode.SelectedItem == "统一出口" && RuleGrid.Items.Cast<RuleRow>().All(row => row.State == "待用"), "home or rule status was not synchronized");
+            Require((string?)HomeRoutingMode.SelectedItem == "全局出口" && RuleGrid.Items.Cast<RuleRow>().All(row => row.State == "待用"), "home or rule status was not synchronized");
             Require(Storage.LoadWorkspace()?.Profile["routingMode"]?.GetValue<string>() == "global", "live mode was not persisted");
             HomeRoutingMode.SelectedItem = "按规则"; await Settled();
             Require(S(await Explain("localhost"), "outbound") == "DIRECT" && RuleGrid.Items.Cast<RuleRow>().All(row => row.State == "生效"), "switching back did not restore rule matching");
@@ -85,7 +85,7 @@ public partial class MainWindow
 
             byte[] beforePreview = File.ReadAllBytes(Storage.WorkspacePath);
             ulong beforeGeneration = N(await client.CallAsync("snapshot"), "generation");
-            RehearsalRoutingMode.SelectedItem = "统一出口"; RehearsalPolicy.SelectedItem = "测试策略组";
+            RehearsalRoutingMode.SelectedItem = "全局出口"; RehearsalPolicy.SelectedItem = "测试策略组";
             RehearsalTargets.Text = "localhost:443 tcp\nblocked.fixture.invalid:443 udp";
             CompareExit(this, new RoutedEventArgs()); await Settled();
             var row = JsonSerializer.SerializeToNode(RehearsalGrid.Items[0])!;
@@ -106,7 +106,7 @@ public partial class MainWindow
             releaseBusy.SetResult(); await pending;
             checks.Add("an overlapping UI action cannot leave an unsaved routing mode selected");
 
-            foreach (string label in new[] { "统一出口", "全部直连", "按规则" })
+            foreach (string label in new[] { "全局出口", "全部直连", "按规则" })
             {
                 HomeRoutingMode.SelectedItem = label; await Settled();
                 Require(S(await Explain("blocked.fixture.invalid"), "outbound") == "REJECT", "mode selection disabled the domain block list");
@@ -126,7 +126,7 @@ public partial class MainWindow
             Navigate(NavRouting, new RoutedEventArgs()); RoutingPage.ScrollToTop(); Notice.Visibility = Visibility.Collapsed;
             Width = 980; Height = 700; await capture(this, "routing-direct-980");
             Width = 1280; Height = 840;
-            HomeRoutingMode.SelectedItem = "统一出口"; await Settled(); Notice.Visibility = Visibility.Collapsed;
+            HomeRoutingMode.SelectedItem = "全局出口"; await Settled(); Notice.Visibility = Visibility.Collapsed;
             RehearsalRoutingMode.SelectedItem = "按规则"; RehearsalPolicy.SelectedItem = "测试策略组";
             RehearsalTargets.Text = "localhost:443 tcp\nblocked.fixture.invalid:443 udp";
             CompareExit(this, new RoutedEventArgs()); await Settled();

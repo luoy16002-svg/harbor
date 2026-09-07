@@ -55,6 +55,7 @@ pub async fn serve(engine: Arc<Engine>, listener: TcpListener) {
 }
 async fn handle(engine: Arc<Engine>, stream: TcpStream, peer: SocketAddr) -> Result<()> {
     stream.set_nodelay(true)?;
+    let local = stream.local_addr()?;
     let mut first = [0; 1];
     ensure!(
         tokio::time::timeout(Duration::from_secs(5), stream.peek(&mut first)).await?? > 0,
@@ -66,7 +67,7 @@ async fn handle(engine: Arc<Engine>, stream: TcpStream, peer: SocketAddr) -> Res
     let service = service_fn(move |request| {
         let engine = engine.clone();
         async move {
-            Ok::<_, Infallible>(match http(engine, request, peer).await {
+            Ok::<_, Infallible>(match http(engine, request, peer, local).await {
                 Ok(response) => response,
                 Err(error) => response(StatusCode::BAD_GATEWAY, &format!("Harbor: {error}")),
             })
@@ -114,7 +115,16 @@ async fn socks(engine: Arc<Engine>, mut stream: TcpStream, peer: SocketAddr) -> 
         .try_acquire_owned()
         .context("Active flow limit reached")?;
     let config = engine.current.load_full();
-    let decision = engine.decision(&config, &host, port, "tcp")?;
+    let decision = engine
+        .decision_for_source(
+            &config,
+            (&host, port, "tcp"),
+            Some(crate::process::Source::Tcp {
+                local: peer,
+                remote: stream.local_addr()?,
+            }),
+        )
+        .await?;
     let mut flow = engine
         .telemetry
         .begin(&host, port, "SOCKS5", &peer.to_string(), &decision);
@@ -228,6 +238,7 @@ async fn http(
     engine: Arc<Engine>,
     mut request: Request<Incoming>,
     peer: SocketAddr,
+    local: SocketAddr,
 ) -> Result<Response<Body>> {
     let connect = request.method() == Method::CONNECT;
     if !connect && request.headers().contains_key("upgrade") {
@@ -266,7 +277,16 @@ async fn http(
         .try_acquire_owned()
         .context("Active flow limit reached")?;
     let config = engine.current.load_full();
-    let decision = engine.decision(&config, &host, port, "tcp")?;
+    let decision = engine
+        .decision_for_source(
+            &config,
+            (&host, port, "tcp"),
+            Some(crate::process::Source::Tcp {
+                local: peer,
+                remote: local,
+            }),
+        )
+        .await?;
     let mut flow = engine.telemetry.begin(
         &host,
         port,
