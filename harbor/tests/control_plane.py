@@ -1,5 +1,6 @@
 """Exercise IPC rejection/atomicity with isolated loopback listeners. No system capture."""
 from pathlib import Path
+from contextlib import ExitStack
 import copy, datetime, hashlib, json, os, queue, socket, struct, subprocess, threading
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -141,6 +142,69 @@ try:
                 release.set(); worker.join(timeout=5)
         require(not ask('snapshot')['running'])
     check('stop stays responsive and cancels an in-flight line verification', cancel_verification)
+    def cancel_one_preserves_forwarding():
+        global next_id
+        with ExitStack() as stack:
+            listeners = [stack.enter_context(socket.socket()) for _ in range(3)]
+            for listener in listeners:
+                listener.bind(('127.0.0.1', 0)); listener.listen(1); listener.settimeout(5)
+            entered = [threading.Event(), threading.Event()]
+            closed = [threading.Event(), threading.Event()]
+            errors = queue.Queue()
+            def stalled(index):
+                try:
+                    with listeners[index].accept()[0] as stream:
+                        stream.settimeout(6)
+                        require(stream.recv(1024).startswith(b'CONNECT ')); entered[index].set()
+                        require(stream.recv(1) == b''); closed[index].set()
+                except Exception as error: errors.put(error)
+            def echo():
+                try:
+                    with listeners[2].accept()[0] as stream:
+                        stream.settimeout(6)
+                        for _ in range(2):
+                            data = stream.recv(1024); require(bool(data)); stream.sendall(data)
+                except Exception as error: errors.put(error)
+            workers = [threading.Thread(target=stalled, args=(index,), daemon=True) for index in range(2)]
+            workers.append(threading.Thread(target=echo, daemon=True))
+            for worker in workers: worker.start()
+            ask('start', config=config)
+            proxy_port = int(config['listen'].rsplit(':', 1)[1])
+            stream = stack.enter_context(socket.create_connection(('127.0.0.1', proxy_port), timeout=4))
+            stream.sendall(b'\x05\x01\x00'); require(stream.recv(2) == b'\x05\x00')
+            stream.sendall(b'\x05\x01\x00\x01\x7f\x00\x00\x01' + struct.pack('!H', listeners[2].getsockname()[1]))
+            reply = b''
+            while len(reply) < 10: reply += stream.recv(10 - len(reply))
+            require(reply[:2] == b'\x05\x00')
+            stream.sendall(b'before-cancel'); require(stream.recv(1024) == b'before-cancel')
+            ids = []
+            for index in range(2):
+                candidate = copy.deepcopy(config)
+                candidate['nodes'] = [dict(name='local-stall', kind='http', server='127.0.0.1', port=listeners[index].getsockname()[1])]
+                next_id += 1; ids.append(next_id)
+                process.stdin.write(json.dumps(dict(id=next_id, command='verify', config=candidate, outbound='local-stall')) + '\n'); process.stdin.flush()
+            require(all(event.wait(3) for event in entered))
+            require('queued' in ask('verify', expected=False, config=candidate, outbound='local-stall'))
+            require(not ask('cancel_verification', requestId=0)['cancelled'])
+            def cancel(request_id):
+                global next_id
+                next_id += 1; cancel_id = next_id
+                process.stdin.write(json.dumps(dict(id=cancel_id, command='cancel_verification', requestId=request_id)) + '\n'); process.stdin.flush()
+                replies = [responses.get(timeout=3), responses.get(timeout=3)]
+                by_id = {item['id']: item for item in replies}
+                require(by_id[cancel_id]['ok'] and by_id[cancel_id]['result']['cancelled'])
+                require(not by_id[request_id]['ok'] and 'cancelled' in by_id[request_id]['error'])
+            cancel(ids[0]); require(closed[0].wait(2) and not closed[1].is_set())
+            require(ask('snapshot')['running'])
+            require(ask('preflight', config=config)['ready'])
+            require(not ask('cancel_verification', requestId=ids[0])['cancelled'])
+            cancel(ids[1]); require(closed[1].wait(2))
+            stream.sendall(b'after-cancel'); require(stream.recv(1024) == b'after-cancel')
+            require(ask('snapshot')['running'])
+            for worker in workers: worker.join(timeout=3); require(not worker.is_alive())
+            if not errors.empty(): raise errors.get()
+            ask('stop')
+    check('two-job limit and targeted cancellation preserve another check and an established SOCKS5 stream', cancel_one_preserves_forwarding)
     ask('shutdown'); process.wait(timeout=5); require(process.returncode == 0)
     report = dict(checkedAt=datetime.datetime.now(datetime.timezone.utc).isoformat(),
                   engineSha256=hashlib.sha256(ENGINE.read_bytes()).hexdigest(), passed=True,

@@ -44,18 +44,29 @@ internal sealed class EngineClient : IAsyncDisposable
         foreach (var source in pending.Values) source.TrySetException(new IOException("网络引擎已退出。"));
         Exited?.Invoke(string.IsNullOrWhiteSpace(error) ? "网络引擎已退出。" : error.Trim());
     }
-    public async Task<JsonNode> CallAsync(string command, JsonObject? fields = null, int timeoutSeconds = 20)
+    public async Task<JsonNode> CallAsync(string command, JsonObject? fields = null, int timeoutSeconds = 20, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         long id = Interlocked.Increment(ref next); var source = new TaskCompletionSource<JsonObject>(TaskCreationOptions.RunContinuationsAsynchronously);
         var message = fields ?? new JsonObject(); message["id"] = id; message["command"] = command;
         string serialized = message.ToJsonString(); if (Encoding.UTF8.GetByteCount(serialized) > 2 * 1024 * 1024) throw new IOException("配置请求超过 2 MiB，请缩减规则或节点数量。");
         pending[id] = source;
         try
         {
-            await writer.WaitAsync();
+            await writer.WaitAsync(cancellationToken);
             try { await Process.StandardInput.WriteLineAsync(serialized); await Process.StandardInput.FlushAsync(); }
             finally { writer.Release(); }
-            var response = await source.Task.WaitAsync(TimeSpan.FromSeconds(timeoutSeconds));
+            JsonObject response;
+            try { response = await source.Task.WaitAsync(TimeSpan.FromSeconds(timeoutSeconds), cancellationToken); }
+            catch (Exception error) when ((error is OperationCanceledException or TimeoutException) && (command is "verify" or "preflight"))
+            {
+                // The request was written before cancellation is sent. Wait for its final reply
+                // so a following batch or preflight can immediately reuse the bounded lane.
+                await CallAsync("cancel_verification", new JsonObject { ["requestId"] = id }, 3);
+                await source.Task.WaitAsync(TimeSpan.FromSeconds(3));
+                throw;
+            }
+            cancellationToken.ThrowIfCancellationRequested();
             if (response["ok"]?.GetValue<bool>() != true) throw new IOException(response["error"]?.GetValue<string>() ?? "引擎请求失败。");
             return response["result"]?.DeepClone() ?? new JsonObject();
         }

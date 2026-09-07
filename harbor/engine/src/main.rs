@@ -1,7 +1,11 @@
 use anyhow::{Context, Result, bail};
 use harbor_engine::{config::Config, engine::Engine};
 use serde_json::{Value, json};
-use std::{sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 
 #[tokio::main]
@@ -52,6 +56,11 @@ async fn main() -> Result<()> {
     });
     let mut requests = tokio::task::JoinSet::new();
     let mut verification_cancel = tokio_util::sync::CancellationToken::new();
+    let slots = Arc::new(tokio::sync::Semaphore::new(2));
+    let verifications = Arc::new(Mutex::new(HashMap::<
+        String,
+        tokio_util::sync::CancellationToken,
+    >::new()));
     loop {
         let mut line = zeroize::Zeroizing::new(Vec::new());
         let n = (&mut reader)
@@ -78,8 +87,8 @@ async fn main() -> Result<()> {
             .and_then(Value::as_str)
             .unwrap_or("")
             .to_string();
+        while requests.try_join_next().is_some() {}
         if command == "verify" || command == "preflight" {
-            while requests.try_join_next().is_some() {}
             let parsed: Result<(Config, String)> = (|| {
                 Ok((
                     serde_json::from_value(request["config"].clone())?,
@@ -94,17 +103,34 @@ async fn main() -> Result<()> {
                 ))
             })();
             wipe(&mut request);
-            if requests.len() >= 2 {
+            let Ok(permit) = slots.clone().try_acquire_owned() else {
                 output
                     .send(json!({"id":id,"ok":false,"error":"A verification is already queued"}))
                     .await?;
                 continue;
+            };
+            let key = id.to_string();
+            if verifications.lock().unwrap().contains_key(&key) {
+                output
+                    .send(json!({"id":id,"ok":false,"error":"Duplicate verification request ID"}))
+                    .await?;
+                continue;
             }
+            let cancelled = verification_cancel.child_token();
+            verifications
+                .lock()
+                .unwrap()
+                .insert(key.clone(), cancelled.clone());
+            let registration = VerificationRegistration {
+                key,
+                active: verifications.clone(),
+                _permit: permit,
+            };
             let egress = engine.as_ref().map(|e| e.resolver.egress.clone());
             let output = output.clone();
-            let cancelled = verification_cancel.clone();
             requests.spawn(async move {
                 let result = tokio::select! {
+                    biased;
                     _ = cancelled.cancelled() => Err(anyhow::anyhow!("Verification cancelled")),
                     result = async { match parsed {
                         Ok((config, outbound)) => if command == "preflight" {
@@ -123,22 +149,21 @@ async fn main() -> Result<()> {
                     Err(error) => json!({"id":id,"ok":false,"error":format!("{error:#}")}),
                 };
                 let _ = output.send(response).await;
+                drop(registration);
             });
             continue;
         }
         if command == "probe" {
             wipe(&mut request);
-            while requests.try_join_next().is_some() {}
-            if requests.len() >= 2 {
+            let Ok(permit) = slots.clone().try_acquire_owned() else {
                 output
                     .send(json!({"id":id,"ok":false,"error":"A node probe is already queued"}))
                     .await?;
                 continue;
-            }
+            };
             let e = engine.clone();
             let output = output.clone();
-            requests.spawn(async move {let response=if let Some(e)=e{tokio::select!{_=e.cancel.cancelled()=>json!({"id":id,"ok":false,"error":"Engine stopped"}),result=e.probe()=>json!({"id":id,"ok":true,"result":result})}}else{json!({"id":id,"ok":false,"error":"Engine is stopped"})};let _=output.send(response).await;});
-            while requests.try_join_next().is_some() {}
+            requests.spawn(async move {let response=if let Some(e)=e{tokio::select!{_=e.cancel.cancelled()=>json!({"id":id,"ok":false,"error":"Engine stopped"}),result=e.probe()=>json!({"id":id,"ok":true,"result":result})}}else{json!({"id":id,"ok":false,"error":"Engine is stopped"})};let _=output.send(response).await;drop(permit);});
             continue;
         }
         let result:Result<Value>=async{match command.as_str() {
@@ -147,6 +172,7 @@ async fn main() -> Result<()> {
             "rehearse"=>{let before:Config=serde_json::from_value(request["before"].clone())?;let after:Config=serde_json::from_value(request["after"].clone())?;let targets:Vec<harbor_engine::rehearsal::Target>=serde_json::from_value(request["targets"].clone())?;harbor_engine::rehearsal::compare(&before,&after,&targets)},
             "start"=>{if engine.is_some(){bail!("Engine already running");}let config:Config=serde_json::from_value(request["config"].clone())?;if isolated && config.tun {bail!("Isolated mode prohibits TUN and route changes");}let e=Engine::start(config).await?;let snapshot=e.snapshot();engine=Some(e);Ok(snapshot)},
             "stop"=>{verification_cancel.cancel();verification_cancel=tokio_util::sync::CancellationToken::new();if let Some(e)=engine.take(){e.stop().await?;tokio::time::sleep(Duration::from_millis(150)).await;}Ok(json!({"running":false}))},
+            "cancel_verification"=>{let target=request.get("requestId").context("Missing verification request ID")?.to_string();let active=verifications.lock().unwrap();let cancelled=active.get(&target).is_some_and(|token|{token.cancel();true});Ok(json!({"cancelled":cancelled}))},
             "snapshot"=>Ok(engine.as_ref().map(|e|e.snapshot()).unwrap_or(json!({"running":false}))),
             "configure"=>{let e=engine.as_ref().context("Engine is stopped")?;let c=serde_json::from_value(request["config"].clone())?;Ok(json!({"generation":e.configure(c)?}))},
             "explain"=>{let e=engine.as_ref().context("Start the engine to evaluate a route")?;let c=e.current.load_full();let host=request["host"].as_str().context("Missing host")?;let port=request["port"].as_u64().unwrap_or(443);if port==0||port>65535{bail!("Invalid port");}Ok(serde_json::to_value(e.decision(&c,host,port as u16,request["protocol"].as_str().unwrap_or("tcp"))?)?)},
@@ -176,6 +202,19 @@ async fn main() -> Result<()> {
     drop(output);
     writer.await??;
     Ok(())
+}
+
+// Registration and capacity are released even if a task panics or is aborted.
+struct VerificationRegistration {
+    key: String,
+    active: Arc<Mutex<HashMap<String, tokio_util::sync::CancellationToken>>>,
+    _permit: tokio::sync::OwnedSemaphorePermit,
+}
+
+impl Drop for VerificationRegistration {
+    fn drop(&mut self) {
+        self.active.lock().unwrap().remove(&self.key);
+    }
 }
 
 fn wipe(value: &mut Value) {

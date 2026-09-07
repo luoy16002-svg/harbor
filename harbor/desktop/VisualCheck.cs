@@ -74,6 +74,15 @@ internal static class VisualCheck
             }
             ((Button)window.FindName("NavOverview")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         });
+        var batch = await window.CheckBatchWorkflowAsync(async () =>
+        {
+            window.UpdateLayout(); await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
+            Render(window, Path.Combine(directory, "nodes-batch-1280.png"));
+            window.Width = 980; window.Height = 700; window.UpdateLayout();
+            await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
+            Render(window, Path.Combine(directory, "nodes-batch-980.png"));
+            window.Width = 1280; window.Height = 840; window.UpdateLayout();
+        });
         var traffic = await window.CheckLoopbackTrafficAsync(async () =>
         {
             window.UpdateLayout(); await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle); Render(window, Path.Combine(directory, "overview-live.png"));
@@ -84,7 +93,7 @@ internal static class VisualCheck
             window.Width = 1280; window.Height = 840;
         });
         string assemblyHash = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(typeof(VisualCheck).Assembly.Location)));
-        File.WriteAllText(Path.Combine(directory, "visual-check.json"), JsonSerializer.Serialize(new { checkedAt = DateTimeOffset.UtcNow, passed = true, applicationSha256 = assemblyHash, primaryButtonContrast = contrast, primaryText = foreground.Color.ToString(), primaryBackground = background.Color.ToString(), navigation = "vector paths; CJK text uses Microsoft YaHei UI", pages = pages.Length + 1, scrollbars, wheelChecked, guided, traffic }, Storage.Json));
+        File.WriteAllText(Path.Combine(directory, "visual-check.json"), JsonSerializer.Serialize(new { checkedAt = DateTimeOffset.UtcNow, passed = true, applicationSha256 = assemblyHash, primaryButtonContrast = contrast, primaryText = foreground.Color.ToString(), primaryBackground = background.Color.ToString(), navigation = "vector paths; CJK text uses Microsoft YaHei UI", pages = pages.Length + 1, scrollbars, wheelChecked, guided, batch, traffic }, Storage.Json));
     }
     private static IEnumerable<T> Descendants<T>(DependencyObject root) where T : DependencyObject
     {

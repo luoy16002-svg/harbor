@@ -10,8 +10,6 @@ namespace Harbor;
 
 public partial class MainWindow
 {
-    private bool verifying;
-    private VerificationHistory lineChecks = new();
     private void SyncHome()
     {
         if (HomePolicy == null) return;
@@ -44,6 +42,8 @@ public partial class MainWindow
             var lastCheck = lineChecks.Get(profile, S(profile, "finalPolicy"));
             HomeCheckResult.Text = lastCheck?.Summary(DateTimeOffset.UtcNow) ?? "尚未验证";
             HomeCheckResult.ToolTip = lastCheck?.Detail;
+            if (verifying) HomeCheckResult.Text = "线路验证进行中 · 可在线路页查看进度";
+            SyncVerificationControls();
             DnsProvider.SelectedItem = ProfileWorkflow.DnsPreset(profile);
             ClearDnsButton.IsEnabled = running;
             SyncTray();
@@ -102,52 +102,6 @@ public partial class MainWindow
         if (subscription && download != null) entries.Add(new SubscriptionEntry(Guid.NewGuid().ToString("N"), name, text, names, DateTimeOffset.UtcNow, download.Etag, download.LastModified, download.Digest, result.Issues.Count));
         await SaveAsync(candidate, entries);
         ShowNotice($"已导入 {names.Length} 条线路。" + (selected ? "首条线路已选中，可以验证后连接。" : "当前出口保持不变。"));
-    }
-
-    private async void VerifySelected(object sender, RoutedEventArgs e)
-    {
-        if (verifying || busy || client == null) return;
-        string name = ReferenceEquals(sender, HomeVerify) ? S(profile, "finalPolicy") : (NodeGrid.SelectedItem as NodeRow)?.Name ?? "";
-        var testedProfile = profile.DeepClone().AsObject();
-        string? fingerprint = VerificationHistory.Fingerprint(testedProfile, name);
-        if (fingerprint == null) { ShowNotice("请先选择一条具体线路。"); return; }
-        verifying = true; SyncHome(); HomeCheckResult.Text = "正在验证…";
-        var button = sender as Button; object? caption = button?.Content; if (button != null) button.Content = "验证中…";
-        try
-        {
-            var result = await client.CallAsync("verify", new JsonObject { ["config"] = testedProfile.DeepClone(), ["outbound"] = name }, 25);
-            if (quitting) return;
-            if (fingerprint != VerificationHistory.Fingerprint(profile, name)) { ShowNotice("线路或网络设置已变化，请重新验证。"); return; }
-            string message = $"HTTPS 成功 · {N(result, "elapsedMs")} ms";
-            string? saveError = RememberLineCheck(name, true, N(result, "elapsedMs"));
-            ShowNotice(name + " · " + message + "。验证目标 www.example.com。" + saveError);
-        }
-        catch (Exception error)
-        {
-            if (!quitting)
-            {
-                bool current = fingerprint == VerificationHistory.Fingerprint(profile, name);
-                bool cancelled = error.Message.Contains("cancel", StringComparison.OrdinalIgnoreCase);
-                string? saveError = current && !cancelled ? RememberLineCheck(name, false, 0, ConnectionFailure.Describe(error.Message)) : null;
-                ShowNotice(current ? "线路验证未完成：" + error.Message + saveError : "线路或网络设置已变化，请重新验证。");
-            }
-        }
-        finally { verifying = false; if (button != null) button.Content = caption; if (!quitting) SyncHome(); }
-    }
-
-    private string? RememberLineCheck(string name, bool success, ulong elapsed, string failure = "")
-    {
-        try { lineChecks.Record(profile, name, success, elapsed, DateTimeOffset.UtcNow, failure); return null; }
-        catch (Exception error) { return " 验证结果未能保存：" + error.Message; }
-        finally { RefreshNodes(); }
-    }
-
-    private void FilterNodes(object sender, RoutedEventArgs e) { if (NodeGrid != null && NodeSearch != null && NodeFilter != null) RefreshNodes(); }
-    private void ResetNodeFilter(object sender, RoutedEventArgs e) { NodeSearch.Text = ""; NodeFilter.SelectedIndex = 0; }
-    private void ClearLineChecks(object sender, RoutedEventArgs e)
-    {
-        try { if (verifying) { ShowNotice("请等待正在进行的线路验证结束。"); return; } lineChecks.Clear(); RefreshNodes(); SyncHome(); ShowNotice("已清除本机保存的线路验证记录。"); }
-        catch (Exception error) { ShowNotice("清除失败：" + error.Message); }
     }
 
     private async void UseSelectedNode(object sender, RoutedEventArgs e)

@@ -12,6 +12,10 @@ A quiet, native desktop utility: readable tables, useful detail panels, restrain
 
 The engine's stdin/stdout is newline-delimited JSON with request IDs. Stdout contains protocol messages only. Stdin closure cancels the engine. No externally reachable administrative API.
 
+HTTPS verification and startup preflight share two bounded job slots with explicit probes. `cancel_verification` accepts a `requestId` and cancels only that verification/preflight job. Stop cancels all verification jobs. Job registrations and slots are released on completion or abort; existing forwarded streams belong to the engine and are unaffected by verification cancellation.
+
+The desktop captures the filtered proxy list and configuration at batch start and schedules at most two requests. It compares each proxy's configuration fingerprint before scheduling and before saving. A changed proxy or DNS/privacy context cannot inherit an older result. Cancellation waits for the engine's final replies before a new batch or startup preflight uses those slots. Sorting considers only recent successful HTTPS results and never changes the selected outbound automatically.
+
 ## Reliability contracts
 
 - Bind and verify listeners before enabling a system proxy.

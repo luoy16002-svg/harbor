@@ -49,7 +49,7 @@ for name, source in sources.items():
             shutil.copyfile(source, output / name)
 visual = root / '.cache/visual-final'
 for name in ['overview-1280.png', 'overview-980.png', 'overview-live.png', 'overview-live-980.png',
-             'overview-configured.png', 'nodes-configured.png', 'routing-configured.png', 'dns-configured.png',
+             'overview-configured.png', 'nodes-configured.png', 'nodes-batch-1280.png', 'nodes-batch-980.png', 'routing-configured.png', 'dns-configured.png',
              'connections-live.png', 'nodes.png', 'subscriptions.png', 'privacy.png', 'routing-scrolled.png',
              'dns.png', 'settings.png', 'node-editor.png', 'group-editor.png', 'import-preview.png']:
     (output / name).unlink(missing_ok=True)

@@ -22,7 +22,7 @@
             <Ellipse x:Name="StatusDot" Width="6" Height="6" Fill="#94A29A" Margin="0,0,7,0" />
             <TextBlock x:Name="SidebarStatus" Text="引擎未启动" FontSize="11" Foreground="#65776D" />
           </StackPanel>
-          <TextBlock Text="0.4.0 · Windows x64" Margin="12,0,0,0" FontSize="10" Foreground="#65776D" />
+          <TextBlock Text="0.5.0 · Windows x64" Margin="12,0,0,0" FontSize="10" Foreground="#65776D" />
         </StackPanel>
         <StackPanel>
           <Button x:Name="NavOverview" Style="{StaticResource Nav}" Tag="Overview" Click="Navigate" Background="#DFE9E4">
@@ -314,6 +314,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
           </Grid.RowDefinitions>
           <StackPanel>
@@ -322,7 +323,7 @@
           </StackPanel>
           <DockPanel Grid.Row="1" Margin="0,0,0,16">
             <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-              <Button Content="验证选中线路" Click="VerifySelected" Margin="0,0,8,0" IsEnabled="{Binding SelectedItem, ElementName=NodeGrid, Converter={StaticResource HasSelection}}"/>
+              <Button x:Name="VerifyNodeButton" Content="验证选中线路" Click="VerifySelected" Margin="0,0,8,0" IsEnabled="False"/>
               <Button Content="手动配置" Click="AddNode" Margin="0,0,8,0" />
               <Button Content="添加线路" Style="{StaticResource Primary}" Click="AddLines" />
             </StackPanel>
@@ -332,16 +333,30 @@
             </StackPanel>
           </DockPanel>
           <Grid Grid.Row="2" Margin="0,0,0,14">
-            <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="170"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+            <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="170"/><ColumnDefinition Width="165"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
             <TextBox x:Name="NodeSearch" TextChanged="FilterNodes" Margin="0,0,10,0" ToolTip="按名称、协议或服务器搜索" AutomationProperties.Name="搜索线路"/>
             <TextBlock Text="搜索名称、协议或服务器" Margin="12,0,10,0" Foreground="{StaticResource Muted}" VerticalAlignment="Center" IsHitTestVisible="False"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Text, ElementName=NodeSearch}" Value=""><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
             <ComboBox x:Name="NodeFilter" Grid.Column="1" SelectedIndex="0" SelectionChanged="FilterNodes" AutomationProperties.Name="按验证结果筛选"><sys:String>全部线路</sys:String><sys:String>最近验证成功</sys:String><sys:String>未验证或需复测</sys:String><sys:String>最近验证未通过</sys:String></ComboBox>
-            <Button Grid.Column="2" Content="重置筛选" Click="ResetNodeFilter" Margin="10,0,0,0"/>
-            <Button Grid.Column="3" Content="清除验证记录" Click="ClearLineChecks" Margin="10,0,0,0"/>
+            <ComboBox x:Name="NodeSort" Grid.Column="2" SelectedIndex="0" SelectionChanged="FilterNodes" Margin="10,0,0,0" AutomationProperties.Name="线路排序"><sys:String>导入顺序</sys:String><sys:String>HTTPS 耗时优先</sys:String></ComboBox>
+            <Button Grid.Column="3" Content="重置筛选" Click="ResetNodeFilter" Margin="10,0,0,0"/>
           </Grid>
-          <Border Grid.Row="3" Style="{StaticResource Panel}" Padding="0">
+          <Border Grid.Row="3" Background="#EDF2ED" CornerRadius="8" Padding="12" Margin="0,0,0,14">
             <Grid>
-              <DataGrid x:Name="NodeGrid" MouseDoubleClick="EditNode">
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                <TextBlock x:Name="BatchStatus" Text="按当前列表逐条检查 HTTPS；耗时不代表下载速度。" FontSize="12" TextWrapping="Wrap" Foreground="{StaticResource Muted}"/>
+                <ProgressBar x:Name="BatchProgress" Height="3" Margin="0,7,0,0" Minimum="0" Maximum="1" Visibility="Collapsed" Foreground="{StaticResource Accent}"/>
+              </StackPanel>
+              <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button x:Name="VerifyVisibleButton" Content="验证当前列表" Click="VerifyVisible" ToolTip="仅验证点击时筛选出的线路，最多同时验证两条；可随时取消。"/>
+                <Button x:Name="CancelVerificationButton" Content="取消" Click="CancelVerification" Margin="8,0,0,0" Visibility="Collapsed"/>
+                <Button x:Name="ClearLineChecksButton" Content="清除记录" Click="ClearLineChecks" Margin="8,0,0,0"/>
+              </StackPanel>
+            </Grid>
+          </Border>
+          <Border Grid.Row="4" Style="{StaticResource Panel}" Padding="0">
+            <Grid>
+              <DataGrid x:Name="NodeGrid" MouseDoubleClick="EditNode" SelectionChanged="NodeSelected">
                 <DataGrid.Columns>
                   <DataGridTextColumn Header="名称" Binding="{Binding Name}" Width="*" />
                   <DataGridTextColumn Header="协议" Binding="{Binding Kind}" Width="85" />

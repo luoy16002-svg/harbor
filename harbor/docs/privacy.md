@@ -10,6 +10,8 @@ Request bodies are not logged. Diagnostic export contains summary fields. **Conf
 
 HTTPS checks send a HEAD request through the selected proxy to `www.example.com`. Saved results contain the proxy name, a configuration fingerprint, outcome, duration, and timestamp. They contain no response body and can be cleared from the proxy page. Results older than 24 hours are marked for retesting.
 
+Batch checks run only after a user action and cover the list captured when the action starts, with at most two requests at a time. Cancelling stops the remaining work and closes active verification connections. It keeps completed results and does not record unfinished checks as failures or stop normal proxy connections.
+
 ## Network
 
 TLS verifies certificate chains and hostnames. A custom CA applies only to its configured proxy or DNS endpoint and is never installed in the Windows trust store.

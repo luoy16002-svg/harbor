@@ -238,6 +238,69 @@ Check("Old and future-dated verification never count as recently successful",()=
     Assert(!check.Fresh(now)&&check.Summary(now).Contains("需复测"));Assert(!(check with{CheckedAt=now.AddHours(1)}).Fresh(now));
     Assert((check with{CheckedAt=now.AddMinutes(-1)}).Fresh(now));
 });
+async Task CheckAsync(string name, Func<Task> action) { await action(); passed++; Console.WriteLine("PASS " + name); }
+await CheckAsync("Verification batch bounds concurrency, deduplicates its snapshot and counts outcomes", async () =>
+{
+    int active = 0, peak = 0, reports = 0;
+    var seen = new System.Collections.Concurrent.ConcurrentDictionary<string, int>();
+    var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var both = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var names = new List<string> { "success", "failure", "skip", "success" };
+    var task = VerificationBatch.RunAsync(names, async (name, token) =>
+    {
+        int count = Interlocked.Increment(ref active); InterlockedExtensionsMax(ref peak, count);
+        seen.AddOrUpdate(name, 1, (_, value) => value + 1);
+        if (count == 2) both.TrySetResult();
+        try { await release.Task.WaitAsync(token); return name switch { "success" => VerificationOutcome.Success, "failure" => VerificationOutcome.Failure, _ => VerificationOutcome.Skipped }; }
+        finally { Interlocked.Decrement(ref active); }
+    }, state => { Assert(state.Completed == reports++); Assert(state.Completed == state.Successful + state.Failed + state.Skipped); }, CancellationToken.None);
+    await both.Task.WaitAsync(TimeSpan.FromSeconds(3));
+    names.Add("must-not-enter-snapshot");
+    Assert(peak == 2 && seen.Count == 2); release.SetResult();
+    var result = await task.WaitAsync(TimeSpan.FromSeconds(3));
+    Assert(result is { Total: 3, Completed: 3, Successful: 1, Failed: 1, Skipped: 1 });
+    Assert(seen.Count == 3 && seen.Values.All(count => count == 1) && active == 0);
+});
+await CheckAsync("Cancelling a batch stops queued work and excludes late successful results", async () =>
+{
+    using var cancellation = new CancellationTokenSource();
+    var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    int started = 0;
+    var task = VerificationBatch.RunAsync(["first", "second", "queued"], async (_, _) =>
+    {
+        if (Interlocked.Increment(ref started) == 2) entered.TrySetResult();
+        await release.Task; return VerificationOutcome.Success;
+    }, _ => { }, cancellation.Token);
+    await entered.Task.WaitAsync(TimeSpan.FromSeconds(3)); cancellation.Cancel(); release.SetResult();
+    var result = await task.WaitAsync(TimeSpan.FromSeconds(3));
+    Assert(started == 2 && result is { Total: 3, Completed: 0, Successful: 0, Failed: 0 });
+    int calls = 0;
+    var cancelled = await VerificationBatch.RunAsync(["already-cancelled"], (_, _) => { calls++; return Task.FromResult(VerificationOutcome.Failure); }, _ => { }, cancellation.Token);
+    Assert(calls == 0 && cancelled.Completed == 0);
+});
+await CheckAsync("Completed batch results survive cancellation and an empty batch does no work", async () =>
+{
+    using var cancellation = new CancellationTokenSource();
+    var firstDone = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var bothEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    int started = 0;
+    var task = VerificationBatch.RunAsync(["complete", "cancel", "queued"], async (name, token) =>
+    {
+        if (Interlocked.Increment(ref started) == 2) bothEntered.TrySetResult();
+        if (name == "complete") { await bothEntered.Task; return VerificationOutcome.Success; }
+        await Task.Delay(Timeout.InfiniteTimeSpan, token); return VerificationOutcome.Failure;
+    }, state => { if (state.Completed == 1) { cancellation.Cancel(); firstDone.TrySetResult(); } }, cancellation.Token);
+    await firstDone.Task.WaitAsync(TimeSpan.FromSeconds(3));
+    var result = await task.WaitAsync(TimeSpan.FromSeconds(3));
+    Assert(result is { Completed: 1, Successful: 1, Failed: 0 } && started == 2);
+    var empty = await VerificationBatch.RunAsync([], (_, _) => throw new Exception("Empty batch ran"), _ => { }, CancellationToken.None);
+    Assert(empty is { Total: 0, Completed: 0 });
+});
+void InterlockedExtensionsMax(ref int target, int value)
+{
+    int current; do { current = Volatile.Read(ref target); if (current >= value) return; } while (Interlocked.CompareExchange(ref target, value, current) != current);
+}
 Console.WriteLine($"{passed} checks passed.");
 
 internal sealed class FakeStore(ProxySettings current):IProxyStore

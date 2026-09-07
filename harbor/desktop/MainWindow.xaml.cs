@@ -34,7 +34,7 @@ public partial class MainWindow : Window
             var preferences = Storage.Read<DesktopPreferences>(Storage.PreferencesPath) ?? new(); SystemProxy.IsChecked = !App.Isolated && preferences.SystemProxy; MinimizeToTray.IsChecked = preferences.MinimizeToTray; ProtectExistingProxy.IsChecked = App.Isolated || preferences.ProtectExistingProxy; SystemProxy.IsEnabled = !App.Isolated; TunEnabled.IsEnabled = !App.Isolated; ProtectExistingProxy.IsEnabled = !App.Isolated;
             var recovered = Recovery.Restore(Storage.JournalPath, true); RecoveryText.Text = recovered.Message;
             string path = Path.Combine(AppContext.BaseDirectory, "harbor-engine.exe"); if (!File.Exists(path)) path = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../target/debug/harbor-engine.exe"));
-            client = new EngineClient(path); client.Exited += message => Dispatcher.InvokeAsync(() => { if (!quitting) { running = false; SetRunning(); ShowNotice(message); try { RecoveryText.Text = Recovery.Restore(Storage.JournalPath, true).Message; } catch (Exception error) { ShowNotice(error.Message); } } });
+            client = new EngineClient(path); client.Exited += message => Dispatcher.InvokeAsync(() => { verificationCancellation?.Cancel(); if (!quitting) { running = false; SetRunning(); ShowNotice(message); try { RecoveryText.Text = Recovery.Restore(Storage.JournalPath, true).Message; } catch (Exception error) { ShowNotice(error.Message); } } });
             profile = Storage.LoadWorkspace()?.Profile ?? (await client.CallAsync("default_config")).AsObject(); if (App.Isolated) profile["tun"] = false; bool dnsUpgraded = ProfileWorkflow.UpgradeDefaultDns(profile); bool egressUpgraded = ProfileWorkflow.UpgradeEgress(profile);
             await client.CallAsync("validate", new JsonObject { { "config", profile.DeepClone() } });
             if (dnsUpgraded || egressUpgraded) { string backupSource = File.Exists(Storage.WorkspacePath) ? Storage.WorkspacePath : Storage.ProfilePath; if (File.Exists(backupSource) && !File.Exists(backupSource + ".pre-0.3.1")) File.Copy(backupSource, backupSource + ".pre-0.3.1"); Storage.SaveWorkspace(profile, Subscriptions.Read()); }
@@ -72,6 +72,7 @@ public partial class MainWindow : Window
     }
     private async Task StartAsync()
     {
+        await CancelVerificationAsync();
         if (client == null) return;
         RunState.Text = "正在启动…";
         try
@@ -107,6 +108,7 @@ public partial class MainWindow : Window
     }
     private async Task StopAsync()
     {
+        await CancelVerificationAsync();
         RunState.Text = guardian == null ? "正在停止…" : "正在恢复网络…";
         var result = Recovery.Restore(Storage.JournalPath); RecoveryText.Text = result.Message;
         // Do not stop the listener if restoration failed: a live proxy is better than a stale dead proxy.
@@ -187,15 +189,17 @@ public partial class MainWindow : Window
             return new NodeRow(name, kind == "shadowsocks" ? "SS" : kind.ToUpperInvariant(), security,
                 S(v!, "server") + ":" + N(v!, "port"), latency.HasValue ? $"{latency:0} ms" : "—",
                 health == null ? "未测试" : State(S(health, "state")), check?.Summary(now) ?? "尚未验证",
-                check?.Detail ?? "选择这条线路后，点击验证选中线路。", verificationState, name == S(profile, "finalPolicy"));
+                check?.Detail ?? "选择这条线路后，点击验证选中线路。", verificationState, verificationState == 1 ? check!.ElapsedMs : null, name == S(profile, "finalPolicy"));
         });
         string search = NodeSearch?.Text.Trim() ?? ""; int filter = Math.Max(0, NodeFilter?.SelectedIndex ?? 0);
         var visible = rows.Where(row => (search.Length == 0 || $"{row.Name} {row.Kind} {row.Server}".Contains(search, StringComparison.OrdinalIgnoreCase)) && (filter == 0 || row.VerificationState == filter)).ToList();
+        if (NodeSort?.SelectedIndex == 1) visible = visible.OrderBy(row => row.VerificationMs ?? ulong.MaxValue).ToList();
         NodeGrid.ItemsSource = visible;
         if (selected != null) NodeGrid.SelectedItem = visible.FirstOrDefault(row => row.Name == selected);
         NodeCount.Text = visible.Count == nodes.Count ? $"{nodes.Count} 条线路 · 验证结果加密保存在本机" : $"显示 {visible.Count} / {nodes.Count} 条线路";
         NodeEmptyTitle.Text = nodes.Count == 0 ? "还没有线路" : "没有匹配的线路";
         NodeEmptyHint.Text = nodes.Count == 0 ? "从订阅或文件导入，也可以手动添加。" : "试试其他关键词，或点击重置筛选。";
+        SyncVerificationControls();
     }
     private async Task SaveAsync(JsonObject candidate, List<SubscriptionEntry>? subscriptions = null)
     {
@@ -320,14 +324,14 @@ public partial class MainWindow : Window
         if (client == null) { DisposeTray(); Application.Current.Shutdown(); return; }
         if (!quitting && MinimizeToTray.IsChecked == true) { e.Cancel = true; Hide(); return; }
         e.Cancel = true; if (busy) return; busy = true; quitting = true; timer.Stop();
-        try { if (running) await StopAsync(); await client.DisposeAsync(); client = null; DisposeTray(); Application.Current.Shutdown(); }
+        try { await CancelVerificationAsync(); if (running) await StopAsync(); await client.DisposeAsync(); client = null; DisposeTray(); Application.Current.Shutdown(); }
         catch (Exception error) { quitting = false; busy = false; timer.Start(); ShowNotice("退出已暂停：" + error.Message); Show(); }
     }
     private sealed record FlowRow(ulong Id, string Destination, string Protocol, string Outbound, string Traffic, string State, string Reason, string Policy, ulong Generation, string Error)
     {
         public string Failure => State == "失败" ? ConnectionFailure.Describe(Error) : "—";
     }
-    private sealed record NodeRow(string Name, string Kind, string Security, string Server, string Latency, string State, string Verification, string VerificationDetail, int VerificationState, bool IsDefault);
+    private sealed record NodeRow(string Name, string Kind, string Security, string Server, string Latency, string State, string Verification, string VerificationDetail, int VerificationState, ulong? VerificationMs, bool IsDefault);
     private sealed record SubscriptionRow(string Id, string Name, string Address, int Count, int Unsupported, string Updated);
     private sealed record GroupRow(string Name, string Kind, string Members);
     private sealed record RuleRow(int Index, string Kind, string Value, string Policy, string State);

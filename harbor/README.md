@@ -1,6 +1,6 @@
 # Harbor
 
-A Windows proxy client with a Rust forwarding engine and a WPF desktop. This is the **0.4.0 preview**.
+A Windows proxy client with a Rust forwarding engine and a WPF desktop. This is the **0.5.0 preview**.
 
 ## Use
 
@@ -25,6 +25,11 @@ Upstream connections use a physical network adapter by default to avoid routing 
 - DoH / DoT, local domain lists, and connection privacy controls.
 - Live traffic, connection details, tray actions, and proxy search.
 - Encrypted, saved HTTPS check results with timestamps and configuration-based expiry.
+- Batch HTTPS checks for the filtered list, progress, cancellation, and numeric elapsed-time sorting.
+
+On the proxies page, search or filter the list and choose the batch check action. Harbor checks the list captured at that moment, with at most two requests in flight. Cancellation closes those verification connections while preserving completed results and active proxy traffic. Starting or stopping the proxy cancels an active batch first.
+
+Sort by HTTPS elapsed time to put recent successful checks first, then select a proxy and use the existing set-as-outbound action. Harbor does not switch your outbound automatically. Each check sends one HTTPS HEAD request to `www.example.com` through the chosen proxy; measured time includes connection setup and the response, and does not measure download speed.
 
 New workspaces use AliDNS DoH first and Cloudflare DoH as a fallback. Certificates are verified; encrypted DNS does not silently fall back to plaintext. DNS settings can select a different provider or custom endpoint.
 
