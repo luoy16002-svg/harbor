@@ -4,7 +4,9 @@ A Windows proxy client with its own Rust engine and a WPF desktop.
 
 Harbor imports subscriptions, routes traffic through rules and proxy groups, and shows live connections. It includes encrypted DNS, local domain blocking, cancellable batch HTTPS checks, and tray controls.
 
-**Status:** 0.5.0 preview. The desktop UI is currently in Chinese. TUN support is experimental; live system-wide capture and recovery have not been validated for this release.
+Subscriptions show provider usage and expiry when available. Updates include a change preview and cancellable downloads.
+
+**Status:** 0.6.0 preview. The desktop UI is currently in Chinese. TUN support is experimental; live system-wide capture and recovery have not been validated for this release.
 
 ## Build
 

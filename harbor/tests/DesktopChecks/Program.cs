@@ -301,6 +301,7 @@ void InterlockedExtensionsMax(ref int target, int value)
 {
     int current; do { current = Volatile.Read(ref target); if (current >= value) return; } while (Interlocked.CompareExchange(ref target, value, current) != current);
 }
+await SubscriptionChecks.RunAsync(Check, CheckAsync);
 Console.WriteLine($"{passed} checks passed.");
 
 internal sealed class FakeStore(ProxySettings current):IProxyStore

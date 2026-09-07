@@ -16,6 +16,10 @@ HTTPS verification and startup preflight share two bounded job slots with explic
 
 The desktop captures the filtered proxy list and configuration at batch start and schedules at most two requests. It compares each proxy's configuration fingerprint before scheduling and before saving. A changed proxy or DNS/privacy context cannot inherit an older result. Cancellation waits for the engine's final replies before a new batch or startup preflight uses those slots. Sorting considers only recent successful HTTPS results and never changes the selected outbound automatically.
 
+Subscription downloads have a separate cancellation token and leave connection controls available. After download, the desktop checks that the source subscription still matches, prepares a diff against the current profile, and holds the configuration lock through modal review and atomic apply. Empty feeds cannot erase proxies. Retained reference targets stay under subscription ownership. Failed persistence restores the previous runtime configuration.
+
+Provider usage is optional metadata in the encrypted subscription record. Header parsing is bounded and rejects ambiguous or invalid counters; missing totals or expiry remain unknown. HTTP 304 responses preserve previously supplied usage when no new header is present, including its original observation time. Identical bodies can refresh usage and validators without configuring the engine.
+
 ## Reliability contracts
 
 - Bind and verify listeners before enabling a system proxy.

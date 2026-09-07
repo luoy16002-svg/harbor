@@ -4,6 +4,8 @@
 
 Workspaces, proxy credentials, subscription URLs, and recovery journals use Windows CurrentUser DPAPI. Saved HTTPS check results are also encrypted. Programs running as the same user, and administrators, may still access this data.
 
+Provider-reported subscription usage and expiry are stored in the same encrypted workspace, with the time received. These statistics come from the subscription service and are independent of Harbor's own byte counts. The optional header convention is described in [Clash Party's response-header documentation](https://clashparty.org/docs/guide/urlscheme). Invalid or absent statistics do not become a zero-use or unlimited-plan claim.
+
 Connection records stay in memory. Completed records are kept for 300 seconds by default, configurable from 0 to 86,400 seconds. Hiding details clears stored destinations, sources, proxies, rule reasons, and error text. It does not remove records held by Windows, browsers, or other apps.
 
 Request bodies are not logged. Diagnostic export contains summary fields. **Configuration export contains credentials.**
@@ -35,6 +37,8 @@ Domain filtering does not prevent browser fingerprinting, account correlation, o
 Opening Harbor does not capture traffic. System proxy mode asks before replacing another active proxy and records settings for recovery. Recovery only restores settings still owned by Harbor and preserves later changes from other programs.
 
 Physical routing binds Harbor's own sockets to a hardware adapter without changing global routes. System routing can follow an existing VPN. Subscription downloads use a separate HTTP client.
+
+Subscription updates run only after a user action. A changed feed is previewed before it replaces proxies; the preview names changed settings without displaying credentials. Cancellation closes the pending download, and empty or unsupported-only feeds preserve the existing workspace. No subscription URL or provider-suggested web page is opened automatically.
 
 `Harbor-Local.cmd` uses an isolated workspace and disables network-setting writes and native TUN startup.
 

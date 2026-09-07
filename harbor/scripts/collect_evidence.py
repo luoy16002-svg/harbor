@@ -50,7 +50,8 @@ for name, source in sources.items():
 visual = root / '.cache/visual-final'
 for name in ['overview-1280.png', 'overview-980.png', 'overview-live.png', 'overview-live-980.png',
              'overview-configured.png', 'nodes-configured.png', 'nodes-batch-1280.png', 'nodes-batch-980.png', 'routing-configured.png', 'dns-configured.png',
-             'connections-live.png', 'nodes.png', 'subscriptions.png', 'privacy.png', 'routing-scrolled.png',
+             'connections-live.png', 'nodes.png', 'subscriptions.png', 'subscriptions-configured-1280.png', 'subscriptions-configured-980.png',
+             'subscriptions-downloading-1280.png', 'subscription-update-preview.png', 'subscription-update-preview-640.png', 'privacy.png', 'routing-scrolled.png',
              'dns.png', 'settings.png', 'node-editor.png', 'group-editor.png', 'import-preview.png']:
     (output / name).unlink(missing_ok=True)
     if (visual / name).is_file() and (output / 'visual-check.json').is_file():

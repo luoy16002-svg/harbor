@@ -34,7 +34,7 @@ public partial class MainWindow : Window
             var preferences = Storage.Read<DesktopPreferences>(Storage.PreferencesPath) ?? new(); SystemProxy.IsChecked = !App.Isolated && preferences.SystemProxy; MinimizeToTray.IsChecked = preferences.MinimizeToTray; ProtectExistingProxy.IsChecked = App.Isolated || preferences.ProtectExistingProxy; SystemProxy.IsEnabled = !App.Isolated; TunEnabled.IsEnabled = !App.Isolated; ProtectExistingProxy.IsEnabled = !App.Isolated;
             var recovered = Recovery.Restore(Storage.JournalPath, true); RecoveryText.Text = recovered.Message;
             string path = Path.Combine(AppContext.BaseDirectory, "harbor-engine.exe"); if (!File.Exists(path)) path = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../target/debug/harbor-engine.exe"));
-            client = new EngineClient(path); client.Exited += message => Dispatcher.InvokeAsync(() => { verificationCancellation?.Cancel(); if (!quitting) { running = false; SetRunning(); ShowNotice(message); try { RecoveryText.Text = Recovery.Restore(Storage.JournalPath, true).Message; } catch (Exception error) { ShowNotice(error.Message); } } });
+            client = new EngineClient(path); client.Exited += message => Dispatcher.InvokeAsync(() => { verificationCancellation?.Cancel(); if (!applyingSubscription) subscriptionCancellation?.Cancel(); if (!quitting) { running = false; SetRunning(); ShowNotice(message); try { RecoveryText.Text = Recovery.Restore(Storage.JournalPath, true).Message; } catch (Exception error) { ShowNotice(error.Message); } } });
             profile = Storage.LoadWorkspace()?.Profile ?? (await client.CallAsync("default_config")).AsObject(); if (App.Isolated) profile["tun"] = false; bool dnsUpgraded = ProfileWorkflow.UpgradeDefaultDns(profile); bool egressUpgraded = ProfileWorkflow.UpgradeEgress(profile);
             await client.CallAsync("validate", new JsonObject { { "config", profile.DeepClone() } });
             if (dnsUpgraded || egressUpgraded) { string backupSource = File.Exists(Storage.WorkspacePath) ? Storage.WorkspacePath : Storage.ProfilePath; if (File.Exists(backupSource) && !File.Exists(backupSource + ".pre-0.3.1")) File.Copy(backupSource, backupSource + ".pre-0.3.1"); Storage.SaveWorkspace(profile, Subscriptions.Read()); }
@@ -49,7 +49,7 @@ public partial class MainWindow : Window
     }
     private async Task Safe(Func<Task> action)
     {
-        if (busy) return; busy = true; ConnectButton.IsEnabled = false; SyncTray();
+        if (busy) return; busy = true; ConnectButton.IsEnabled = false; SyncTray(); SyncSubscriptionControls();
         try { await action(); } catch (Exception error) { ShowNotice(error.Message); } finally { busy = false; ConnectButton.IsEnabled = client != null; SyncHome(); }
     }
     private void ShowNotice(string text) { NoticeText.Text = text; Notice.Visibility = Visibility.Visible; if (!IsVisible && tray != null && !quitting) tray.ShowBalloonTip(4000, "Harbor", text.Length > 220 ? text[..217] + "…" : text, Forms.ToolTipIcon.Info); }
@@ -64,6 +64,7 @@ public partial class MainWindow : Window
         }
         if (name is "Subscriptions" or "Dns" or "Diagnostics") ((Button)FindName("Nav" + (name == "Subscriptions" ? "Nodes" : name == "Dns" ? "Privacy" : "Network"))).Background = new SolidColorBrush(Color.FromRgb(223, 233, 228));
         string label = name switch { "Overview" => "总览", "Connections" => "连接", "Nodes" => "线路", "Subscriptions" => "订阅", "Routing" => "分流", "Dns" => "DNS", "Diagnostics" => "诊断", "Privacy" => "隐私保护", "Network" => "网络管理", _ => "设置" }; Breadcrumb.Text = label; if (name == "Network") { try { RefreshNetworkState(); } catch (Exception error) { ShowNotice(error.Message); } }
+        if (name == "Subscriptions") RefreshSubscriptionGrid();
     }
     private async void ToggleEngine(object sender, RoutedEventArgs e)
     {
@@ -72,6 +73,7 @@ public partial class MainWindow : Window
     }
     private async Task StartAsync()
     {
+        await CancelSubscriptionRefreshAsync();
         await CancelVerificationAsync();
         if (client == null) return;
         RunState.Text = "正在启动…";
@@ -108,6 +110,7 @@ public partial class MainWindow : Window
     }
     private async Task StopAsync()
     {
+        await CancelSubscriptionRefreshAsync();
         await CancelVerificationAsync();
         RunState.Text = guardian == null ? "正在停止…" : "正在恢复网络…";
         var result = Recovery.Restore(Storage.JournalPath); RecoveryText.Text = result.Message;
@@ -234,26 +237,6 @@ public partial class MainWindow : Window
         var dialog = new TextDialog(this, "导入节点", "粘贴分享链接（每行一个）、Clash YAML、SIP008 或 Harbor JSON。订阅地址请从「订阅」页面添加。", "", true).AllowFileImport(); if (dialog.ShowDialog() != true) return;
         await Safe(async () => { var result = ProfileImport.Parse(dialog.Text); if (new ImportPreview(this, result).ShowDialog() != true) return; var candidate = Subscriptions.Merge(profile, result.Nodes, null, "", out _, out _); ProfileWorkflow.SelectFirstImport(profile, candidate); await SaveAsync(candidate); ShowNotice($"已导入 {result.Nodes.Count} 个节点。"); });
     }
-    private void RefreshSubscriptionGrid()
-    {
-        try { SubscriptionGrid.ItemsSource = Subscriptions.Read().Select(s => new SubscriptionRow(s.Id, s.Name, Subscriptions.DisplayAddress(s.Url), s.NodeNames.Length, s.UnsupportedCount, s.UpdatedAt.ToLocalTime().ToString("MM-dd HH:mm"))).ToList(); }
-        catch (Exception error) { ShowNotice(error.Message); }
-    }
-    private async void AddSubscription(object sender, RoutedEventArgs e)
-    {
-        var form = new FormDialog(this, "添加订阅").Field("name", "订阅名称").Field("url", "HTTPS 订阅地址"); if (form.ShowDialog() != true) return;
-        await Safe(async () => { string name = form.Get("name"); if (string.IsNullOrWhiteSpace(name) || name.Length > 40) throw new FormatException("订阅名称须为 1–40 个字符。"); var entries = Subscriptions.Read(); if (entries.Any(s => s.Name == name)) throw new FormatException("已有同名订阅。"); var download = await Subscriptions.FetchAsync(form.Get("url"), running ? S(profile, "listen") : null); var result = ProfileImport.Parse(download.Text); if (new ImportPreview(this, result).ShowDialog() != true) return; var candidate = Subscriptions.Merge(profile, result.Nodes, null, name + " · ", out var names, out _); ProfileWorkflow.SelectFirstImport(profile, candidate); entries.Add(new SubscriptionEntry(Guid.NewGuid().ToString("N"), name, form.Get("url"), names, DateTimeOffset.UtcNow, download.Etag, download.LastModified, download.Digest, result.Issues.Count)); await SaveAsync(candidate, entries); RefreshSubscriptionGrid(); ShowNotice($"已添加订阅，导入 {names.Length} 个节点。"); });
-    }
-    private async void RefreshSubscription(object sender, RoutedEventArgs e) => await Safe(async () =>
-    {
-        if (SubscriptionGrid.SelectedItem is not SubscriptionRow row) return; var entries = Subscriptions.Read(); int index = entries.FindIndex(s => s.Id == row.Id); if (index < 0) return; var previous = entries[index]; var download = await Subscriptions.FetchAsync(previous.Url, running ? S(profile, "listen") : null, previous);
-        if (download.NotModified || download.Digest == previous.Digest) { entries[index] = previous with { UpdatedAt = DateTimeOffset.UtcNow }; Subscriptions.Save(entries); RefreshSubscriptionGrid(); ShowNotice("订阅未变化，现有连接不受影响。"); return; }
-        var result = ProfileImport.Parse(download.Text); if (new ImportPreview(this, result).ShowDialog() != true) return; var candidate = Subscriptions.Merge(profile, result.Nodes, previous, previous.Name + " · ", out var names, out int retained); entries[index] = previous with { NodeNames = names, UpdatedAt = DateTimeOffset.UtcNow, Etag = download.Etag, LastModified = download.LastModified, Digest = download.Digest, UnsupportedCount = result.Issues.Count }; await SaveAsync(candidate, entries); RefreshSubscriptionGrid(); ShowNotice($"订阅已更新。另保留 {retained} 个仍被策略引用的旧节点。");
-    });
-    private void RemoveSubscription(object sender, RoutedEventArgs e)
-    {
-        if (SubscriptionGrid.SelectedItem is not SubscriptionRow row) return; var entries = Subscriptions.Read(); entries.RemoveAll(s => s.Id == row.Id); Subscriptions.Save(entries); RefreshSubscriptionGrid(); ShowNotice("已移除订阅地址，节点和分流设置保留。");
-    }
     private async void ProbeNodes(object sender, RoutedEventArgs e)
     {
         var button = (Button)sender; button.IsEnabled = false;
@@ -324,7 +307,7 @@ public partial class MainWindow : Window
         if (client == null) { DisposeTray(); Application.Current.Shutdown(); return; }
         if (!quitting && MinimizeToTray.IsChecked == true) { e.Cancel = true; Hide(); return; }
         e.Cancel = true; if (busy) return; busy = true; quitting = true; timer.Stop();
-        try { await CancelVerificationAsync(); if (running) await StopAsync(); await client.DisposeAsync(); client = null; DisposeTray(); Application.Current.Shutdown(); }
+        try { await CancelSubscriptionRefreshAsync(); await CancelVerificationAsync(); if (running) await StopAsync(); await client.DisposeAsync(); client = null; DisposeTray(); Application.Current.Shutdown(); }
         catch (Exception error) { quitting = false; busy = false; timer.Start(); ShowNotice("退出已暂停：" + error.Message); Show(); }
     }
     private sealed record FlowRow(ulong Id, string Destination, string Protocol, string Outbound, string Traffic, string State, string Reason, string Policy, ulong Generation, string Error)
@@ -332,7 +315,6 @@ public partial class MainWindow : Window
         public string Failure => State == "失败" ? ConnectionFailure.Describe(Error) : "—";
     }
     private sealed record NodeRow(string Name, string Kind, string Security, string Server, string Latency, string State, string Verification, string VerificationDetail, int VerificationState, ulong? VerificationMs, bool IsDefault);
-    private sealed record SubscriptionRow(string Id, string Name, string Address, int Count, int Unsupported, string Updated);
     private sealed record GroupRow(string Name, string Kind, string Members);
     private sealed record RuleRow(int Index, string Kind, string Value, string Policy, string State);
 }

@@ -1,12 +1,13 @@
 # Features
 
-Implemented features and the checks completed for 0.5.0 are listed separately from unverified behavior.
+Implemented features and the checks completed for 0.6.0 are listed separately from unverified behavior.
 
 | Feature | Implementation | Verification |
 | --- | --- | --- |
 | App icon and tray | Multi-size icon, connection state, connect/disconnect, navigation, and exit | Embedded resources and isolated tray workflows |
 | Proxy search and saved checks | Name, protocol, and server search; encrypted results; expiry after configuration changes or 24 hours; numeric HTTPS sorting | Persistence, filtering, clearing, per-proxy invalidation, timestamps, and expired-result ordering |
-| Imports and subscriptions | HTTPS downloads, preview, ownership tracking, atomic saves, and failed-update rollback | Parser, downloader, merge, and desktop workflow checks |
+| Imports and subscriptions | Cancellable HTTPS updates, a preview of added/changed/removed/retained proxies, ownership tracking, and atomic saves | Parser, body/header cancellation, real preview acceptance/cancellation, empty-feed rejection, stale-response rejection, and failed-save rollback |
+| Subscription statistics | Optional provider upload/download/total/expiry data, timestamps, and an explicit unavailable state | Header bounds and parsing, old-workspace compatibility, DPAPI persistence, 304 replies, and identical-body metadata refresh |
 | Proxy selection and rules | Live configuration updates, ordered groups, rule editing, and offline route comparisons | Policy tests, invalid-update rollback, and established-stream preservation |
 | Local proxy | HTTP and SOCKS5 listeners, TCP and persistent UDP sessions | Independent interop and loopback traffic |
 | System proxy | WinINET settings, encrypted recovery journal, and an independent recovery process | Recovery state machine tested with simulated storage; live writes were not tested for this release |

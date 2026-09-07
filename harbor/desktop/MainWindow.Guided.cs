@@ -44,6 +44,7 @@ public partial class MainWindow
             HomeCheckResult.ToolTip = lastCheck?.Detail;
             if (verifying) HomeCheckResult.Text = "线路验证进行中 · 可在线路页查看进度";
             SyncVerificationControls();
+            SyncSubscriptionControls();
             DnsProvider.SelectedItem = ProfileWorkflow.DnsPreset(profile);
             ClearDnsButton.IsEnabled = running;
             SyncTray();
@@ -99,7 +100,7 @@ public partial class MainWindow
         string name = "订阅 " + (entries.Count + 1); while (entries.Any(entry => entry.Name == name)) name += " ·";
         var candidate = Subscriptions.Merge(profile, result.Nodes, null, subscription ? name + " · " : "", out var names, out _);
         bool selected = ProfileWorkflow.SelectFirstImport(profile, candidate);
-        if (subscription && download != null) entries.Add(new SubscriptionEntry(Guid.NewGuid().ToString("N"), name, text, names, DateTimeOffset.UtcNow, download.Etag, download.LastModified, download.Digest, result.Issues.Count));
+        if (subscription && download != null) entries.Add(new SubscriptionEntry(Guid.NewGuid().ToString("N"), name, text, names, DateTimeOffset.UtcNow, download.Etag, download.LastModified, download.Digest, result.Issues.Count, download.Usage));
         await SaveAsync(candidate, entries);
         ShowNotice($"已导入 {names.Length} 条线路。" + (selected ? "首条线路已选中，可以验证后连接。" : "当前出口保持不变。"));
     }

@@ -22,7 +22,7 @@
             <Ellipse x:Name="StatusDot" Width="6" Height="6" Fill="#94A29A" Margin="0,0,7,0" />
             <TextBlock x:Name="SidebarStatus" Text="引擎未启动" FontSize="11" Foreground="#65776D" />
           </StackPanel>
-          <TextBlock Text="0.5.0 · Windows x64" Margin="12,0,0,0" FontSize="10" Foreground="#65776D" />
+          <TextBlock Text="0.6.0 · Windows x64" Margin="12,0,0,0" FontSize="10" Foreground="#65776D" />
         </StackPanel>
         <StackPanel>
           <Button x:Name="NavOverview" Style="{StaticResource Nav}" Tag="Overview" Click="Navigate" Background="#DFE9E4">
@@ -388,7 +388,9 @@
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
           </Grid.RowDefinitions>
           <StackPanel>
@@ -397,21 +399,31 @@
           </StackPanel>
           <DockPanel Grid.Row="1" Margin="0,0,0,16">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-              <Button Content="更新选中订阅" Click="RefreshSubscription" IsEnabled="{Binding SelectedItem, ElementName=SubscriptionGrid, Converter={StaticResource HasSelection}}" Margin="0,0,8,0" />
-              <Button Content="添加订阅" Click="AddSubscription" Style="{StaticResource Primary}" />
+              <Button x:Name="RefreshSubscriptionButton" Content="检查订阅更新" Click="RefreshSubscription" IsEnabled="False" Margin="0,0,8,0" />
+              <Button x:Name="AddSubscriptionButton" Content="添加订阅" Click="AddSubscription" Style="{StaticResource Primary}" />
             </StackPanel>
-            <Button Content="移除订阅记录" Click="RemoveSubscription" IsEnabled="{Binding SelectedItem, ElementName=SubscriptionGrid, Converter={StaticResource HasSelection}}" HorizontalAlignment="Left" />
+            <Button x:Name="RemoveSubscriptionButton" Content="移除订阅记录" Click="RemoveSubscription" IsEnabled="False" HorizontalAlignment="Left" />
           </DockPanel>
-          <Border Grid.Row="2" Style="{StaticResource Panel}" Padding="0">
+          <Grid Grid.Row="2" Margin="0,0,0,14">
+            <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+              <TextBlock x:Name="SubscriptionStatus" Text="更新前可检查线路变化；下载过程中可以取消。" Style="{StaticResource Hint}"/>
+              <ProgressBar x:Name="SubscriptionDownloadProgress" Height="3" Margin="0,7,0,0" IsIndeterminate="True" Visibility="Collapsed" Foreground="{StaticResource Accent}"/>
+            </StackPanel>
+            <Button x:Name="CancelSubscriptionButton" Grid.Column="1" Content="取消下载" Click="CancelSubscriptionRefresh" Visibility="Collapsed"/>
+          </Grid>
+          <Border Grid.Row="3" Style="{StaticResource Panel}" Padding="0">
             <Grid>
-              <DataGrid x:Name="SubscriptionGrid">
+              <DataGrid x:Name="SubscriptionGrid" SelectionChanged="SubscriptionSelected">
                 <DataGrid.Columns>
-                  <DataGridTextColumn Header="订阅" Binding="{Binding Name}" Width="130" />
-                  <DataGridTextColumn Header="地址" Binding="{Binding Address}" Width="*" />
-                  <DataGridTextColumn Header="节点" Binding="{Binding Count}" Width="65" />
-                  <DataGridTextColumn Header="不支持" Binding="{Binding Unsupported}" Width="80" />
-                  <DataGridTextColumn Header="最近更新" Binding="{Binding Updated}" Width="135" />
+                  <DataGridTextColumn Header="订阅" Binding="{Binding Name}" Width="*" />
+                  <DataGridTextColumn Header="节点" Binding="{Binding Count}" Width="55" />
+                  <DataGridTextColumn Header="不支持" Binding="{Binding Unsupported}" Width="60" />
+                  <DataGridTextColumn Header="服务商用量" Binding="{Binding UsageText}" Width="190" />
+                  <DataGridTextColumn Header="到期时间" Binding="{Binding Expiry}" Width="155" />
+                  <DataGridTextColumn Header="最近检查" Binding="{Binding Updated}" Width="120" />
                 </DataGrid.Columns>
+                <DataGrid.RowStyle><Style TargetType="DataGridRow"><Setter Property="ToolTip" Value="{Binding Address}"/></Style></DataGrid.RowStyle>
               </DataGrid>
               <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="20,42,20,0" IsHitTestVisible="False">
                 <StackPanel.Style>
@@ -429,8 +441,23 @@
               </StackPanel>
             </Grid>
           </Border>
-          <Border Grid.Row="3" Background="#ECF1ED" CornerRadius="5" Padding="16" Margin="0,14,0,0">
-            <TextBlock Text="完整订阅地址按当前 Windows 用户加密保存，不写入日志或诊断导出。订阅更新失败时保留现有节点；已被规则引用的旧节点也会保留。" Style="{StaticResource Hint}" />
+          <Border Grid.Row="4" Style="{StaticResource Panel}" Padding="16" Margin="0,14,0,0">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock x:Name="SubscriptionUsageTitle" Text="服务商统计" Style="{StaticResource Hint}" TextTrimming="CharacterEllipsis"/>
+                <TextBlock x:Name="SubscriptionUsageText" Text="服务商未提供流量信息" FontSize="20" FontWeight="SemiBold" Margin="0,7,0,5"/>
+                <TextBlock x:Name="SubscriptionUsageRemaining" Text="这不代表零用量或无限额度。" Style="{StaticResource Hint}"/>
+                <ProgressBar x:Name="SubscriptionUsageProgress" Height="4" Margin="0,9,0,0" Minimum="0" Maximum="100" Foreground="{StaticResource Accent}" Visibility="Collapsed"/>
+              </StackPanel>
+              <StackPanel Grid.Column="2">
+                <TextBlock x:Name="SubscriptionUsageExpiry" Text="未提供到期时间" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,7"/>
+                <TextBlock x:Name="SubscriptionUsageDetail" Text="服务商提供流量信息后，会在此显示。" Style="{StaticResource Hint}"/>
+              </StackPanel>
+            </Grid>
+          </Border>
+          <Border Grid.Row="5" Background="#ECF1ED" CornerRadius="5" Padding="12" Margin="0,12,0,0">
+            <TextBlock Text="订阅地址与统计加密保存在本机。更新失败或取消时保留现有配置；被分流引用的旧线路也会保留。" Style="{StaticResource Hint}" />
           </Border>
         </Grid>
         <ScrollViewer x:Name="RoutingPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
