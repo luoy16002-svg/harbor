@@ -12,6 +12,12 @@ A quiet, native desktop utility: readable tables, useful detail panels, restrain
 
 The engine's stdin/stdout is newline-delimited JSON with request IDs. Stdout contains protocol messages only. Stdin closure cancels the engine. No externally reachable administrative API.
 
+The optional `routingMode` configuration field defaults to `rules` for existing workspaces. A local domain block is evaluated first. In rules mode, the first matching enabled rule or `finalPolicy` chooses a policy. In `global` mode, `finalPolicy` chooses it directly. In `direct` mode, the policy is `DIRECT`. Group selection and transport privacy rejection follow. Non-rule modes retain and validate the saved rules and references. The snapshot exposes the active mode.
+
+Mode changes use the existing immutable configuration generations. New TCP connections and new UDP destination sessions use the new generation; existing flows keep theirs. Desktop selections are synchronized with the saved profile, and a persistence failure rolls runtime routing back before returning an error. Direct-mode startup skips DNS preflight for the unused default proxy. Explicit proxy checks remain independent of routing mode, so mode selection does not invalidate their saved results.
+
+Desktop start/stop transitions suspend status polling and advance a connection revision. Polls discard replies or errors from an earlier revision, including a delayed stopped reply arriving after a reconnect. An unexpected stopped state goes through the same UI action lock as an explicit disconnect.
+
 HTTPS verification and startup preflight share two bounded job slots with explicit probes. `cancel_verification` accepts a `requestId` and cancels only that verification/preflight job. Stop cancels all verification jobs. Job registrations and slots are released on completion or abort; existing forwarded streams belong to the engine and are unaffected by verification cancellation.
 
 The desktop captures the filtered proxy list and configuration at batch start and schedules at most two requests. It compares each proxy's configuration fingerprint before scheduling and before saving. A changed proxy or DNS/privacy context cannot inherit an older result. Cancellation waits for the engine's final replies before a new batch or startup preflight uses those slots. Sorting considers only recent successful HTTPS results and never changes the selected outbound automatically.

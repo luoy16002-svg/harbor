@@ -24,6 +24,7 @@ public partial class MainWindow : Window
     private EngineClient? client; private Process? guardian; private JsonObject profile = new(); private JsonNode? snapshot;
     private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromSeconds(1) };
     private Forms.NotifyIcon? tray; private bool running, busy, refreshing, syncing, quitting;
+    private bool changingConnection; private long connectionRevision;
     private ulong lastUp, lastDown; private DateTime lastSample = DateTime.UtcNow;
     private List<FlowRow> flows = [];
     public MainWindow() { InitializeComponent(); Icon = new System.Windows.Media.Imaging.BitmapImage(new Uri("pack://application:,,,/Assets/harbor.ico")); timer.Tick += async (_, _) => await RefreshAsync(); }
@@ -68,10 +69,20 @@ public partial class MainWindow : Window
     }
     private async void ToggleEngine(object sender, RoutedEventArgs e)
     {
-        if (!running && profile["nodes"]!.AsArray().Count == 0) { AddLines(sender, e); return; }
+        if (!running && ProfileWorkflow.NeedsFirstNode(profile)) { AddLines(sender, e); return; }
         await Safe(async () => { if (running) await StopAsync(); else await StartAsync(); });
     }
-    private async Task StartAsync()
+    private Task StartAsync() => ChangeConnectionAsync(StartCoreAsync);
+    private Task StopAsync() => ChangeConnectionAsync(StopCoreAsync);
+    private async Task ChangeConnectionAsync(Func<Task> action)
+    {
+        if (changingConnection) throw new InvalidOperationException("正在切换连接状态，请稍候。");
+        changingConnection = true; connectionRevision++;
+        try { await action(); }
+        finally { changingConnection = false; }
+        if (running) await RefreshAsync();
+    }
+    private async Task StartCoreAsync()
     {
         await CancelSubscriptionRefreshAsync();
         await CancelVerificationAsync();
@@ -100,7 +111,7 @@ public partial class MainWindow : Window
             RecoveryText.Text = SystemProxy.IsChecked == true ? "原始设置已加密保存。停止连接时自动恢复。" : "本次会话未修改系统代理。";
             GuardianText.Text = guardian != null ? $"独立恢复进程运行中 · PID {guardian.Id}" : ProtectExistingProxy.IsChecked == true ? "共存保护已开启。" : "共存保护已关闭。";
             RecoveryBadge.Text = guardian != null ? "守护中" : "无需恢复";
-            SetRunning(); await RefreshAsync();
+            SetRunning();
         }
         catch
         {
@@ -108,7 +119,7 @@ public partial class MainWindow : Window
             throw;
         }
     }
-    private async Task StopAsync()
+    private async Task StopCoreAsync()
     {
         await CancelSubscriptionRefreshAsync();
         await CancelVerificationAsync();
@@ -127,13 +138,17 @@ public partial class MainWindow : Window
         SyncHome();
         SyncTray(); if (!running) { DownloadRate.Text = UploadRate.Text = "0 B/s"; ActiveCount.Text = "0"; FooterTraffic.Text = "无网络接管"; }
     }
-    private async Task RefreshAsync()
+    private async Task RefreshAsync(Func<Task<JsonNode>>? readSnapshot = null)
     {
-        if (refreshing || client == null || !running || quitting) return; refreshing = true;
+        if (refreshing || changingConnection || client == null || !running || quitting) return; refreshing = true;
+        long revision = connectionRevision;
         try
         {
-            snapshot = await client.CallAsync("snapshot");
-            if (snapshot["running"]?.GetValue<bool>() != true) { await StopAsync(); ShowNotice("引擎已停止，系统代理已恢复。"); return; }
+            var response = await (readSnapshot?.Invoke() ?? client.CallAsync("snapshot"));
+            // A reply from a previous start/stop must not stop or repaint a newer session.
+            if (revision != connectionRevision || changingConnection || !running || quitting) return;
+            snapshot = response;
+            if (snapshot["running"]?.GetValue<bool>() != true) { await Safe(async () => { await StopAsync(); ShowNotice("引擎已停止，系统代理已恢复。"); }); return; }
             ulong up = N(snapshot, "uploaded"), down = N(snapshot, "downloaded"); double elapsed = Math.Max(0.1, (DateTime.UtcNow - lastSample).TotalSeconds);
             double upload = (up >= lastUp ? up - lastUp : 0) / elapsed, download = (down >= lastDown ? down - lastDown : 0) / elapsed; lastUp = up; lastDown = down; lastSample = DateTime.UtcNow;
             DownloadRate.Text = Format.Bytes(download) + "/s"; UploadRate.Text = Format.Bytes(upload) + "/s"; Chart.Push(download, upload);
@@ -147,7 +162,7 @@ public partial class MainWindow : Window
             EventGrid.ItemsSource = (snapshot["events"]?.AsArray() ?? []).Select(v => new { Time = DateTimeOffset.FromUnixTimeMilliseconds((long)N(v!, "time")).ToLocalTime().ToString("HH:mm:ss"), Level = S(v!, "level"), Message = S(v!, "message") }).ToList();
             DiagnosticSummary.Text = $"已处理 {N(snapshot, "accepted")} 条连接 · 失败 {N(snapshot, "failed")} 条";
         }
-        catch (Exception error) { if (!quitting) ShowNotice(error.Message); }
+        catch (Exception error) { if (!quitting && revision == connectionRevision && !changingConnection && running) ShowNotice(error.Message); }
         finally { refreshing = false; }
     }
     private static string S(JsonNode node, string key) => node[key]?.GetValue<string>() ?? "";
@@ -159,6 +174,7 @@ public partial class MainWindow : Window
     private static string State(string state) => state switch { "active" => "活跃", "connecting" => "连接中", "closed" => "已结束", "failed" => "失败", "healthy" => "正常", "degraded" => "待观察", "unavailable" => "不可用", _ => "未测试" };
     private void SyncProfile()
     {
+        InvalidateRoutePreview();
         syncing = true;
         try
         {
@@ -170,7 +186,7 @@ public partial class MainWindow : Window
             PolicySummary.Text = S(profile, "finalPolicy"); PolicyDetail.Text = PolicySummary.Text == "DIRECT" ? "未命中规则的连接使用直连。" : "未命中规则的连接使用此策略。";
             FinalPolicy.ItemsSource = Policies(); FinalPolicy.SelectedItem = S(profile, "finalPolicy");
             GroupGrid.ItemsSource = profile["groups"]!.AsArray().Select(v => new GroupRow(S(v!, "name"), S(v!, "kind") switch { "select" => "手动选择", "fallback" => "故障切换", _ => "优选低延迟" }, v!["members"]!.AsArray().Count + " 个成员")).ToList();
-            RuleGrid.ItemsSource = profile["rules"]!.AsArray().Select((v, i) => new RuleRow(i, ProfileWorkflow.RuleLabel(S(v!, "kind")), S(v!, "value"), S(v!, "policy"), v!["enabled"]?.GetValue<bool>() == false ? "已停用" : "生效")).ToList(); RefreshNodes();
+            RuleGrid.ItemsSource = profile["rules"]!.AsArray().Select((v, i) => new RuleRow(i, ProfileWorkflow.RuleLabel(S(v!, "kind")), S(v!, "value"), S(v!, "policy"), v!["enabled"]?.GetValue<bool>() == false ? "已停用" : ProfileWorkflow.RoutingMode(profile) == "rules" ? "生效" : "待用")).ToList(); RefreshNodes();
         }
         finally { syncing = false; }
         RefreshSubscriptionGrid(); SyncPrivacy(); SyncHome();

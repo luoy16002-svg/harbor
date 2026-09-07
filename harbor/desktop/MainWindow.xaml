@@ -22,7 +22,7 @@
             <Ellipse x:Name="StatusDot" Width="6" Height="6" Fill="#94A29A" Margin="0,0,7,0" />
             <TextBlock x:Name="SidebarStatus" Text="引擎未启动" FontSize="11" Foreground="#65776D" />
           </StackPanel>
-          <TextBlock Text="0.6.0 · Windows x64" Margin="12,0,0,0" FontSize="10" Foreground="#65776D" />
+          <TextBlock Text="0.7.0 · Windows x64" Margin="12,0,0,0" FontSize="10" Foreground="#65776D" />
         </StackPanel>
         <StackPanel>
           <Button x:Name="NavOverview" Style="{StaticResource Nav}" Tag="Overview" Click="Navigate" Background="#DFE9E4">
@@ -150,6 +150,11 @@
                   <Button x:Name="HomeVerify" Grid.Column="3" Content="验证线路" Click="VerifySelected" VerticalAlignment="Bottom" Margin="12,0,0,0" ToolTip="通过此线路完成到 www.example.com 的 HTTPS 请求；不修改系统网络设置。"/>
                 </Grid>
                 <TextBlock x:Name="ModeDescription" Style="{StaticResource Hint}" Margin="0,11,0,0"/>
+                <Grid Margin="0,16,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="145"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                  <TextBlock Text="分流模式" VerticalAlignment="Center" Margin="0,0,12,0" Style="{StaticResource Hint}"/>
+                  <ComboBox x:Name="HomeRoutingMode" Grid.Column="1" SelectionChanged="RoutingModeChanged"/>
+                  <TextBlock x:Name="HomeRoutingDescription" Grid.Column="2" VerticalAlignment="Center" Margin="14,0,0,0" Style="{StaticResource Hint}"/>
+                </Grid>
                 <DockPanel x:Name="HeroStatusRow" Margin="0,16,0,0"><TextBlock x:Name="OnboardingSteps" FontSize="11" Foreground="{StaticResource Accent}" TextTrimming="CharacterEllipsis"/></DockPanel>
               </StackPanel>
             </Border>
@@ -463,7 +468,13 @@
         <ScrollViewer x:Name="RoutingPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
           <StackPanel>
             <TextBlock Text="分流" Style="{StaticResource Heading}" />
-            <TextBlock Text="规则按顺序匹配。IP 规则只匹配已知 IP，不为分流额外泄露域名查询。" Style="{StaticResource Hint}" Margin="0,0,0,22" />
+            <TextBlock Text="管理进入 Harbor 的请求路径。IP 规则只匹配已知 IP，不为分流额外查询域名。" Style="{StaticResource Hint}" Margin="0,0,0,22" />
+            <Border Style="{StaticResource Panel}" Margin="0,0,0,16">
+              <StackPanel>
+                <DockPanel><TextBlock Text="当前分流模式" Style="{StaticResource Section}" VerticalAlignment="Center" Margin="0,0,18,0"/><ComboBox x:Name="RoutingModeInput" SelectionChanged="RoutingModeChanged" Width="180" HorizontalAlignment="Left"/></DockPanel>
+                <TextBlock x:Name="RoutingModeDescription" Style="{StaticResource Hint}" Margin="0,12,0,0"/>
+              </StackPanel>
+            </Border>
             <Border Style="{StaticResource Panel}" Margin="0,0,0,16">
               <StackPanel>
                 <TextBlock Text="路径检查" Style="{StaticResource Section}" />
@@ -478,9 +489,13 @@
               <StackPanel>
                 <DockPanel>
                   <Button Content="高级配置预演" Click="RehearseRoutes" DockPanel.Dock="Right" />
-                  <TextBlock Text="规则变更预演" Style="{StaticResource Section}" />
+                  <TextBlock Text="路径变更预演" Style="{StaticResource Section}" />
                 </DockPanel>
-                <DockPanel Margin="0,0,0,14"><Button Content="比较出口" Click="CompareExit" DockPanel.Dock="Right" Margin="12,0,0,0"/><ComboBox x:Name="RehearsalPolicy"/></DockPanel><TextBox x:Name="RehearsalTargets" Text="example.com:443 tcp" AcceptsReturn="True" Height="80" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto" />
+                <Grid Margin="0,0,0,14"><Grid.ColumnDefinitions><ColumnDefinition Width="155"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                  <StackPanel><TextBlock Text="候选模式" Style="{StaticResource Hint}" Margin="0,0,0,6"/><ComboBox x:Name="RehearsalRoutingMode" SelectionChanged="RehearsalModeChanged"/></StackPanel>
+                  <StackPanel Grid.Column="1" Margin="12,0,0,0"><TextBlock Text="候选默认出口" Style="{StaticResource Hint}" Margin="0,0,0,6"/><ComboBox x:Name="RehearsalPolicy" SelectionChanged="PreviewConditionsChanged"/></StackPanel>
+                  <Button Grid.Column="2" Content="比较路径" Click="CompareExit" VerticalAlignment="Bottom" Margin="12,0,0,0"/>
+                </Grid><TextBox x:Name="RehearsalTargets" Text="example.com:443 tcp" TextChanged="PreviewConditionsChanged" AcceptsReturn="True" Height="80" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto" />
                 <TextBlock Text="每行：域名或 IP:端口 tcp/udp。离线比较修改前后路径，不发送请求，不影响现有连接；节点健康按未测量处理。" Style="{StaticResource Hint}" Margin="0,10,0,16" />
                 <DataGrid x:Name="RehearsalGrid" Height="180">
                   <DataGrid.Columns>
@@ -507,6 +522,7 @@
               </StackPanel>
               <TextBlock Text="匹配规则" FontWeight="SemiBold" VerticalAlignment="Center" />
             </DockPanel>
+            <TextBlock x:Name="RuleModeHint" Style="{StaticResource Hint}" Margin="0,0,0,12"/>
             <Border Style="{StaticResource Panel}" Padding="0" Margin="0,0,0,16">
               <DataGrid x:Name="RuleGrid" Height="220" MouseDoubleClick="EditRule">
                 <DataGrid.Columns>

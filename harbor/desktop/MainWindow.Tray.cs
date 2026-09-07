@@ -19,7 +19,7 @@ public partial class MainWindow
         trayToggle = new Forms.ToolStripMenuItem("连接", null, (_, _) => Dispatcher.Invoke(() =>
         {
             if (busy || client == null) return;
-            if ((profile["nodes"] as System.Text.Json.Nodes.JsonArray)?.Count == 0) ShowMainWindow();
+            if (ProfileWorkflow.NeedsFirstNode(profile)) ShowMainWindow();
             ToggleEngine(this, new RoutedEventArgs());
         }));
         menu.Items.Add(trayToggle); menu.Items.Add(new Forms.ToolStripSeparator());
@@ -40,11 +40,12 @@ public partial class MainWindow
     {
         if (tray == null) return;
         string route = profile["finalPolicy"]?.GetValue<string>() ?? "未选择";
+        if (ProfileWorkflow.RoutingMode(profile) == "direct") route = "DIRECT";
         tray.Icon = running ? trayConnectedIcon : trayStoppedIcon;
         string text = "Harbor · " + (running ? "已连接 · " + route : "已停止"); tray.Text = text.Length > 63 ? text[..60] + "…" : text;
         trayToggle!.Text = busy ? "正在处理…" : running ? "断开并恢复网络" : "连接";
         trayToggle.Enabled = !busy && !quitting && client != null;
-        trayRoute!.Text = "当前出口 · " + (route.Length > 42 ? route[..39] + "…" : route); trayRoute.ToolTipText = route;
+        trayRoute!.Text = ProfileWorkflow.RoutingLabel(profile) + " · " + (route.Length > 42 ? route[..39] + "…" : route); trayRoute.ToolTipText = route;
         trayCopy!.Enabled = client != null && !string.IsNullOrEmpty(S(profile, "listen")); trayExit!.Enabled = !busy;
     }
     private void DisposeTray()

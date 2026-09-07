@@ -1,14 +1,14 @@
 # Verification
 
-These results apply to the 0.6.0 preview checked on 2026-09-07. They do not establish production readiness or carry over automatically to later builds.
+These results apply to the 0.7.0 preview checked on 2026-09-07. They do not establish production readiness or carry over automatically to later builds.
 
 | Check | Result | Scope |
 | --- | --- | --- |
-| Rust tests | 33 passed | Protocols, routing, packets, privacy, encrypted DNS, and adapter selection |
-| Desktop checks | 46 passed | Imports, subscription headers and diffs, DPAPI, recovery state, saved history, bounded batch scheduling, and cancellation |
+| Rust tests | 36 passed | Protocols, routing modes, packets, privacy precedence, encrypted DNS, and adapter selection |
+| Desktop checks | 47 passed | Imports, subscription headers and diffs, DPAPI, recovery state, mode defaults, saved history, bounded batch scheduling, and cancellation |
 | Independent interop | 49 passed | Xray v26.3.27, TCP/UDP paths, 2 MiB payloads, delayed replies, source-port reuse, and concurrent connections |
-| Control interface | 11 passed | Isolation, preflight, stop, atomic configuration changes, and targeted cancellation preserving a second check and an established SOCKS5 stream |
-| WPF workflows | 33 passed | Import, search, tray controls, HTTPS batches, subscription statistics, real update previews, download cancellation, and runtime rollback after a failed save |
+| Control interface | 13 passed | Isolation, preflight, stop, atomic configuration changes, targeted cancellation, and routing-mode changes over real TCP/UDP sessions |
+| WPF workflows | 43 passed | Import, search, tray controls, HTTPS batches, subscription updates, both mode selectors, stale-preview clearing, delayed status replies after reconnect, and failed-save rollback |
 | Layout | Passed | Ten pages, four dialogs, 1280/980-pixel main windows, and a 640-pixel subscription preview |
 | Build | Passed | Strict Clippy and desktop compilation without warnings |
 
@@ -19,6 +19,8 @@ UI traffic checks used four real SOCKS5 connections to a loopback echo server. R
 Batch checks used two loopback HTTP CONNECT servers that held their replies until cancellation. Both sockets closed, the third queued proxy was untouched, previous results remained, and the active engine kept running. A separate privacy-blocked batch verified that changing the search field does not expand a batch already in progress. Historical times shown in the batch layout fixtures are synthetic data used to check sorting and retention.
 
 Subscription checks used synthetic provider headers and in-memory HTTP responses. They exercised cancellation while waiting for headers and body bytes, old workspace loading, metadata updates on unchanged content, real preview buttons, empty-feed rejection, and late responses after a source change. A read-only workspace fixture forced persistence to fail after runtime configuration; the original disk bytes, desktop profile, and runtime proxy names were restored. Subscription screenshots contain fixture data, not the user's provider statistics.
+
+Routing checks used isolated listeners and real loopback TCP and UDP echoes. Switching modes changed newly opened flows while established flows continued transferring data with their original generations. Invalid mode values left the running generation unchanged. Desktop checks exercised both mode selectors, direct startup without proxies, unused-proxy preflight, unchanged disk bytes after offline comparison, stale-result clearing after configuration/input changes, overlapping UI actions, and a forced save failure restoring disk, UI, and runtime mode. A delayed stopped reply was injected across an actual stop/start and could not stop or repaint the new session. Privacy blocks stayed effective in all three modes. Mode screenshots show a fixture proxy and offline path results.
 
 A limited external forwarding check completed HTTPS requests through the release engine's SOCKS5 and HTTP CONNECT listeners. This does not establish compatibility with every proxy, destination, or network.
 

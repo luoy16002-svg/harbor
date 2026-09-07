@@ -89,15 +89,16 @@ public partial class MainWindow
     }
     private async void RehearseRoutes(object sender, RoutedEventArgs e)
     {
-        string[] keys = ["finalPolicy", "rules", "groups", "privacy"];
+        string[] keys = ["routingMode", "finalPolicy", "rules", "groups", "privacy"];
         var draft = new JsonObject(); foreach (string key in keys) draft[key] = key == "privacy" ? PrivacyDefaults(profile) : profile[key]?.DeepClone();
+        draft["routingMode"] = ProfileWorkflow.RoutingMode(profile);
         var editor = new TextDialog(this, "候选分流 · 仅用于预演", "编辑最终策略、规则、策略组或隐私限制，再比较出口变化。预演不保存配置、不发送网络请求。", draft.ToJsonString(Storage.Json));
         if (editor.ShowDialog() != true) return;
         await Safe(async () =>
         {
             if (client == null) return;
             var changes = JsonNode.Parse(editor.Text)?.AsObject() ?? throw new FormatException("候选配置不是 JSON 对象。");
-            if (changes.Any(change => !keys.Contains(change.Key))) throw new FormatException("预演编辑器只接受 finalPolicy、rules、groups 和 privacy。");
+            if (changes.Any(change => !keys.Contains(change.Key))) throw new FormatException("预演编辑器只接受 routingMode、finalPolicy、rules、groups 和 privacy。");
             var candidate = profile.DeepClone().AsObject(); foreach (var change in changes) candidate[change.Key] = change.Value?.DeepClone();
             var result = await client.CallAsync("rehearse", new JsonObject { ["before"] = profile.DeepClone(), ["after"] = candidate, ["targets"] = RouteTargets(RehearsalTargets.Text) });
             var rows = result["rows"]!.AsArray().Select(row => new { Target = S(row!["target"]!, "host") + ":" + N(row["target"]!, "port") + " · " + S(row["target"]!, "protocol"), Before = S(row["before"]!, "outbound"), After = S(row["after"]!, "outbound"), Status = row["changed"]!.GetValue<bool>() ? "路径有变化" : "不变", Reason = S(row["after"]!, "reason") }).ToList();

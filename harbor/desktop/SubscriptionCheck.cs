@@ -63,7 +63,8 @@ public partial class MainWindow
                 else ToggleEngine(this, new RoutedEventArgs());
                 await operation.WaitAsync(TimeSpan.FromSeconds(3)); await Settled();
                 Require(Saved().SequenceEqual(originalDisk) && JsonNode.DeepEquals(profile, originalProfile) && running == !disconnect, "cancel or disconnect changed subscription data");
-                Require((await client.CallAsync("snapshot"))["running"]!.GetValue<bool>() == !disconnect, "engine state did not match the UI after download cancellation");
+                bool engineRunning = (await client.CallAsync("snapshot"))["running"]!.GetValue<bool>();
+                Require(engineRunning == !disconnect, $"engine state did not match the UI after download cancellation: disconnect={disconnect}, desktop={running}, engine={engineRunning}");
             }
             await HeldDownload(false); checks.Add("cancel interrupts a subscription download while preserving data and active listeners");
             await HeldDownload(true); checks.Add("disconnect cancels its pending subscription download before stopping listeners");

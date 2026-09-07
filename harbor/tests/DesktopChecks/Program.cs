@@ -229,7 +229,7 @@ Check("Route selection, listener edits and JSON property order retain relevant v
     var profile=VerificationFixture();string? key=VerificationHistory.Fingerprint(profile,"private-line-a");
     var reordered=new JsonObject();foreach(var property in profile.Reverse())reordered[property.Key]=property.Value?.DeepClone();
     reordered["nodes"]![0]=JsonNode.Parse("""{"password":"local-fixture-only","port":9,"server":"127.0.0.1","name":"private-line-a"}""");
-    reordered["finalPolicy"]="private-line-b";reordered["listen"]="127.0.0.1:9999";reordered["rules"]=new JsonArray();
+    reordered["finalPolicy"]="private-line-b";reordered["listen"]="127.0.0.1:9999";reordered["rules"]=new JsonArray();reordered["routingMode"]="direct";
     Assert(key==VerificationHistory.Fingerprint(reordered,"private-line-a"));
 });
 Check("Old and future-dated verification never count as recently successful",()=>
@@ -302,6 +302,15 @@ void InterlockedExtensionsMax(ref int target, int value)
     int current; do { current = Volatile.Read(ref target); if (current >= value) return; } while (Interlocked.CompareExchange(ref target, value, current) != current);
 }
 await SubscriptionChecks.RunAsync(Check, CheckAsync);
+Check("Legacy routing stays rule-based and direct mode can start without importing nodes", () =>
+{
+    var value = new JsonObject { ["nodes"] = new JsonArray(), ["finalPolicy"] = "DIRECT" };
+    Assert(ProfileWorkflow.RoutingMode(value) == "rules" && ProfileWorkflow.NeedsFirstNode(value));
+    value["routingMode"] = ProfileWorkflow.RoutingKey("全部直连");
+    Assert(ProfileWorkflow.RoutingLabel(value) == "全部直连" && !ProfileWorkflow.NeedsFirstNode(value));
+    value["routingMode"] = "global"; Assert(ProfileWorkflow.NeedsFirstNode(value));
+    value["nodes"] = new JsonArray(new JsonObject { ["name"] = "fixture" }); Assert(!ProfileWorkflow.NeedsFirstNode(value));
+});
 Console.WriteLine($"{passed} checks passed.");
 
 internal sealed class FakeStore(ProxySettings current):IProxyStore

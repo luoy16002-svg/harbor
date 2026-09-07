@@ -1,6 +1,6 @@
 # Harbor
 
-A Windows proxy client with a Rust forwarding engine and a WPF desktop. This is the **0.6.0 preview**.
+A Windows proxy client with a Rust forwarding engine and a WPF desktop. This is the **0.7.0 preview**.
 
 ## Use
 
@@ -22,6 +22,7 @@ Upstream connections use a physical network adapter by default to avoid routing 
 - HTTP CONNECT, SOCKS5, Shadowsocks, Shadowsocks 2022, Trojan, VLESS, and VMess.
 - Clash YAML, Base64 link collections, SIP008, and Harbor JSON imports.
 - Routing rules, proxy groups, and offline comparisons of routing changes.
+- Saved routing modes: rules, one default outbound, or direct; live switching preserves established connections.
 - DoH / DoT, local domain lists, and connection privacy controls.
 - Live traffic, connection details, tray actions, and proxy search.
 - Encrypted, saved HTTPS check results with timestamps and configuration-based expiry.
@@ -35,6 +36,18 @@ Sort by HTTPS elapsed time to put recent successful checks first, then select a 
 In subscription management, check for updates to review added, changed, removed, and retained proxies. Proxies still referenced by an outbound, rule, or group remain available. Cancelling a download or declining its preview keeps the existing workspace. Connection controls remain available while downloading; disconnecting cancels the pending download first.
 
 Usage and expiry come from the provider's optional `Subscription-Userinfo` header and include the time received. They are separate from Harbor's local traffic counters. Missing or malformed statistics are shown as unavailable; a zero total does not imply an unlimited plan. Updates are user initiated.
+
+Choose a routing mode on the overview or routing page. Modes affect traffic entering Harbor and are separate from the system proxy, application proxy, and TUN connection methods.
+
+| Mode | New connections |
+| --- | --- |
+| Rules (`rules`, the default) | Match enabled rules in order, then use the default outbound. |
+| Single outbound (`global`) | Ignore routing rules and use the default outbound, including its selected group member. |
+| Direct (`direct`) | Ignore routing rules and the default outbound and request a direct connection. No proxy import is required to connect. |
+
+Local domain blocks and transport privacy restrictions apply in every mode. For example, direct mode rejects non-loopback traffic when blocking DIRECT is enabled. Rules and the selected default outbound stay saved when unused. Explicit proxy verification and background health probes still refer to the configured proxies.
+
+Switching modes updates new TCP connections and new UDP destination sessions; existing sessions keep their original configuration. The routing page can compare a candidate mode and default outbound offline without applying either. Changing the active configuration or preview inputs clears older comparison results. Old profiles without `routingMode` continue to use rules.
 
 New workspaces use AliDNS DoH first and Cloudflare DoH as a fallback. Certificates are verified; encrypted DNS does not silently fall back to plaintext. DNS settings can select a different provider or custom endpoint.
 

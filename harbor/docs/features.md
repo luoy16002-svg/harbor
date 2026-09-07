@@ -1,6 +1,6 @@
 # Features
 
-Implemented features and the checks completed for 0.6.0 are listed separately from unverified behavior.
+Implemented features and the checks completed for 0.7.0 are listed separately from unverified behavior.
 
 | Feature | Implementation | Verification |
 | --- | --- | --- |
@@ -9,6 +9,7 @@ Implemented features and the checks completed for 0.6.0 are listed separately fr
 | Imports and subscriptions | Cancellable HTTPS updates, a preview of added/changed/removed/retained proxies, ownership tracking, and atomic saves | Parser, body/header cancellation, real preview acceptance/cancellation, empty-feed rejection, stale-response rejection, and failed-save rollback |
 | Subscription statistics | Optional provider upload/download/total/expiry data, timestamps, and an explicit unavailable state | Header bounds and parsing, old-workspace compatibility, DPAPI persistence, 304 replies, and identical-body metadata refresh |
 | Proxy selection and rules | Live configuration updates, ordered groups, rule editing, and offline route comparisons | Policy tests, invalid-update rollback, and established-stream preservation |
+| Routing modes | Rules, a single default outbound, or direct; saved selections and offline mode comparison | Legacy defaults, group selection, privacy precedence, real TCP/UDP transitions, and failed-save rollback in the desktop |
 | Local proxy | HTTP and SOCKS5 listeners, TCP and persistent UDP sessions | Independent interop and loopback traffic |
 | System proxy | WinINET settings, encrypted recovery journal, and an independent recovery process | Recovery state machine tested with simulated storage; live writes were not tested for this release |
 | Upstream routing | Physical adapter selection or system routing; updates for new connections after network changes | Adapter selection checks and limited HTTPS forwarding with an existing TUN active |

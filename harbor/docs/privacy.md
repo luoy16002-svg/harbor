@@ -22,6 +22,8 @@ Plain HTTP CONNECT and SOCKS5 provide no transport encryption. SOCKS5 over TLS p
 
 The option to block non-loopback DIRECT traffic applies to Harbor's forwarded connections. It is not a firewall and does not control other applications, DNS upstream traffic, health probes, or subscription downloads.
 
+Routing modes do not disable local domain blocking or transport restrictions. Direct mode requests a direct path and can still be rejected by the configured privacy settings. A mode change applies to new TCP connections and new UDP destination sessions; existing sessions keep their original route. The offline mode comparison sends no network requests and does not save its candidate configuration.
+
 DoH and DoT do not silently downgrade to plaintext. New workspaces try AliDNS DoH, then Cloudflare DoH. The selected resolver can see query names and source IPs. Users can choose one provider or configure a custom endpoint.
 
 ## Domain filtering

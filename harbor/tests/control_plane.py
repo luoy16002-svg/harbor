@@ -205,6 +205,8 @@ try:
             if not errors.empty(): raise errors.get()
             ask('stop')
     check('two-job limit and targeted cancellation preserve another check and an established SOCKS5 stream', cancel_one_preserves_forwarding)
+    from routing_modes import run as check_routing_modes
+    check_routing_modes(ask, config, available_port, check)
     ask('shutdown'); process.wait(timeout=5); require(process.returncode == 0)
     report = dict(checkedAt=datetime.datetime.now(datetime.timezone.utc).isoformat(),
                   engineSha256=hashlib.sha256(ENGINE.read_bytes()).hexdigest(), passed=True,

@@ -6,7 +6,9 @@ Harbor imports subscriptions, routes traffic through rules and proxy groups, and
 
 Subscriptions show provider usage and expiry when available. Updates include a change preview and cancellable downloads.
 
-**Status:** 0.6.0 preview. The desktop UI is currently in Chinese. TUN support is experimental; live system-wide capture and recovery have not been validated for this release.
+Switch between rule routing, one default outbound, and direct routing. Preview path changes offline before selecting a mode; established connections keep their original route.
+
+**Status:** 0.7.0 preview. The desktop UI is currently in Chinese. TUN support is experimental; live system-wide capture and recovery have not been validated for this release.
 
 ## Build
 

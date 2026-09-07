@@ -17,16 +17,18 @@ public partial class MainWindow
         try
         {
             int count = (profile["nodes"] as JsonArray)?.Count ?? 0;
+            bool direct = ProfileWorkflow.RoutingMode(profile) == "direct";
+            bool needsNode = ProfileWorkflow.NeedsFirstNode(profile);
             HomePolicy.ItemsSource = Policies(); HomePolicy.SelectedItem = S(profile, "finalPolicy");
-            HomePolicy.IsEnabled = count > 0;
+            HomePolicy.IsEnabled = count > 0 && !direct && !busy;
             string? previewPolicy = RehearsalPolicy.SelectedItem as string;
             var choices = Policies(); RehearsalPolicy.ItemsSource = choices;
             RehearsalPolicy.SelectedItem = choices.Contains(previewPolicy) ? previewPolicy : S(profile, "finalPolicy");
             HomeMode.SelectedIndex = App.Isolated ? 1 : profile["tun"]?.GetValue<bool>() == true ? 2 : SystemProxy.IsChecked == true ? 0 : 1;
             HomeMode.IsEnabled = !running && !App.Isolated;
             ModeLabel.Text = App.Isolated ? "隔离测试" : HomeMode.SelectedIndex switch { 0 => "系统代理", 2 => "增强模式 · TUN", _ => "应用代理" };
-            HomeTitle.Text = running ? "连接已开启" : count == 0 ? "从第一条线路开始" : "准备就绪";
-            HomeDescription.Text = count == 0 ? "粘贴订阅地址或分享链接，Harbor 会自动选中首条线路。" : running ? "切换线路只影响新连接，已建立的连接保留原出口。" : $"已添加 {count} 条线路。选择出口后，点击右上角连接。";
+            HomeTitle.Text = running ? "连接已开启" : needsNode ? "从第一条线路开始" : "准备就绪";
+            HomeDescription.Text = needsNode ? "粘贴订阅地址或分享链接，Harbor 会自动选中首条线路。" : direct ? "直连模式已就绪，无需添加代理线路。" : running ? "切换线路只影响新连接，已建立的连接保留原出口。" : $"已添加 {count} 条线路。选择出口后，点击右上角连接。";
             HomeDescription.Visibility = running ? Visibility.Collapsed : Visibility.Visible;
             HeroStatusRow.Visibility = running ? Visibility.Collapsed : Visibility.Visible;
             ModeDescription.Text = HomeMode.SelectedIndex switch
@@ -35,16 +37,18 @@ public partial class MainWindow
                 2 => "通过虚拟网卡接入 TCP / UDP，需要管理员权限。实验功能，当前版本尚未完成真实网络稳定性验证。",
                 _ => App.Isolated ? "测试工作区只允许回环监听，系统代理、DNS 和路由写入已锁定。" : "仅指定代理地址的应用使用 Harbor，适合手动分应用配置。"
             };
-            OnboardingSteps.Text = count == 0 ? "① 添加线路     →     ② 选择出口     →     ③ 连接" : $"✓ {count} 条线路     →     {S(profile, "finalPolicy")}     →     {(running ? "已连接" : "待连接")}";
+            OnboardingSteps.Text = needsNode ? "① 添加线路     →     ② 选择出口     →     ③ 连接" : direct ? "全部直连     →     " + (running ? "已连接" : "待连接") : $"✓ {count} 条线路     →     {S(profile, "finalPolicy")}     →     {(running ? "已连接" : "待连接")}";
             HomeAdd.Content = count == 0 ? "添加线路" : "添加更多";
-            ConnectButton.Content = running ? "断开" : count == 0 ? "添加线路" : "连接";
-            HomeVerify.IsEnabled = !busy && !verifying && profile["nodes"]!.AsArray().Any(v => S(v!, "name") == S(profile, "finalPolicy"));
+            ConnectButton.Content = running ? "断开" : needsNode ? "添加线路" : "连接";
+            HomeVerify.IsEnabled = !direct && !busy && !verifying && profile["nodes"]!.AsArray().Any(v => S(v!, "name") == S(profile, "finalPolicy"));
             var lastCheck = lineChecks.Get(profile, S(profile, "finalPolicy"));
             HomeCheckResult.Text = lastCheck?.Summary(DateTimeOffset.UtcNow) ?? "尚未验证";
             HomeCheckResult.ToolTip = lastCheck?.Detail;
             if (verifying) HomeCheckResult.Text = "线路验证进行中 · 可在线路页查看进度";
+            else if (direct) { HomeCheckResult.Text = "直连模式 · 默认出口暂不使用"; HomeCheckResult.ToolTip = null; }
             SyncVerificationControls();
             SyncSubscriptionControls();
+            SyncRoutingControls();
             DnsProvider.SelectedItem = ProfileWorkflow.DnsPreset(profile);
             ClearDnsButton.IsEnabled = running;
             SyncTray();
@@ -107,7 +111,7 @@ public partial class MainWindow
 
     private async void UseSelectedNode(object sender, RoutedEventArgs e)
     {
-        await Safe(async () => { if (NodeGrid.SelectedItem is not NodeRow row) return; var candidate = profile.DeepClone().AsObject(); candidate["finalPolicy"] = row.Name; await SaveAsync(candidate); });
+        await Safe(async () => { if (NodeGrid.SelectedItem is not NodeRow row) return; var candidate = profile.DeepClone().AsObject(); candidate["finalPolicy"] = row.Name; await SaveAsync(candidate); if (ProfileWorkflow.RoutingMode(profile) == "direct") ShowNotice("默认出口已保存。当前使用全部直连，切换分流模式后才使用默认出口。"); });
     }
 
     private async void ApplyDnsProvider(object sender, RoutedEventArgs e) => await Safe(async () =>
@@ -121,6 +125,7 @@ public partial class MainWindow
     {
         if (client == null || RehearsalPolicy.SelectedItem is not string policy) return;
         var candidate = profile.DeepClone().AsObject(); candidate["finalPolicy"] = policy;
+        if (RehearsalRoutingMode.SelectedItem is string label) candidate["routingMode"] = ProfileWorkflow.RoutingKey(label);
         await CompareRoutesAsync(candidate);
     });
 
@@ -129,7 +134,7 @@ public partial class MainWindow
         if (client == null) return;
         var result = await client.CallAsync("rehearse", new JsonObject { ["before"] = profile.DeepClone(), ["after"] = candidate, ["targets"] = RouteTargets(RehearsalTargets.Text) });
         var rows = result["rows"]!.AsArray().Select(row => new { Target = S(row!["target"]!, "host") + ":" + N(row["target"]!, "port") + " · " + S(row["target"]!, "protocol"), Before = S(row["before"]!, "outbound"), After = S(row["after"]!, "outbound"), Status = row["changed"]!.GetValue<bool>() ? "路径有变化" : "不变", Reason = S(row["after"]!, "reason") }).ToList();
-        RehearsalGrid.ItemsSource = rows; RehearsalSummary.Text = $"{rows.Count} 个目标 · {rows.Count(row => row.Status != "不变")} 项变化 · 仅预览，未修改当前分流";
+        RehearsalGrid.ItemsSource = rows; RehearsalSummary.Text = $"本次比较：{ProfileWorkflow.RoutingLabel(profile)} → {ProfileWorkflow.RoutingLabel(candidate)} · {rows.Count} 个目标，{rows.Count(row => row.Status != "不变")} 项变化 · 未应用";
     }
 
     private async void EditRule(object sender, RoutedEventArgs e) { if (RuleGrid.SelectedItem is RuleRow row) await EditRuleAsync(row.Index); }

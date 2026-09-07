@@ -18,6 +18,8 @@ pub struct Config {
     pub groups: Vec<Group>,
     pub rules: Vec<Rule>,
     pub final_policy: String,
+    #[serde(default)]
+    pub routing_mode: RoutingMode,
     pub max_connections: usize,
     pub connect_timeout_ms: u64,
     pub idle_timeout_secs: u64,
@@ -75,6 +77,7 @@ impl Default for Config {
                 },
             ],
             final_policy: "DIRECT".into(),
+            routing_mode: RoutingMode::default(),
             max_connections: 2048,
             connect_timeout_ms: 8000,
             idle_timeout_secs: 300,
@@ -92,6 +95,15 @@ pub enum EgressMode {
     #[default]
     Physical,
     System,
+}
+
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum RoutingMode {
+    #[default]
+    Rules,
+    Global,
+    Direct,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]

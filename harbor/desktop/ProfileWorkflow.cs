@@ -7,6 +7,13 @@ namespace Harbor;
 // Shared by the guided importer and manual editor; existing routing choices are preserved.
 internal static class ProfileWorkflow
 {
+    public static readonly (string Key, string Label)[] RoutingModes =
+    [("rules", "按规则"), ("global", "统一出口"), ("direct", "全部直连")];
+    public static string RoutingMode(JsonObject profile) => profile["routingMode"]?.GetValue<string>() ?? "rules";
+    public static string RoutingLabel(JsonObject profile) => RoutingModes.First(v => v.Key == RoutingMode(profile)).Label;
+    public static string RoutingKey(string label) => RoutingModes.First(v => v.Label == label).Key;
+    public static bool NeedsFirstNode(JsonObject profile) => (profile["nodes"] as JsonArray)?.Count == 0 && RoutingMode(profile) != "direct";
+
     public static bool SelectFirstImport(JsonObject before, JsonObject after)
     {
         if ((before["nodes"] as JsonArray)?.Count != 0 || before["finalPolicy"]?.GetValue<string>() != "DIRECT") return false;

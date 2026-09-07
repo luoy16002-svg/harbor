@@ -1,4 +1,9 @@
-use crate::{config::Config, dns::Resolver, net::Egress, privacy, transport};
+use crate::{
+    config::{Config, RoutingMode},
+    dns::Resolver,
+    net::Egress,
+    privacy, transport,
+};
 use anyhow::{Context, Result, ensure};
 use serde_json::{Value, json};
 use std::{
@@ -17,6 +22,9 @@ pub async fn verify(config: Config, outbound: String, egress: Arc<Egress>) -> Re
 /// DIRECT/REJECT and literal IPs need no external DNS query.
 pub async fn preflight(config: Config) -> Result<Value> {
     config.validate()?;
+    if config.routing_mode == RoutingMode::Direct {
+        return Ok(json!({"ready":true,"dnsRequired":false,"outbound":"DIRECT"}));
+    }
     let mut selector = crate::policy::Selector::default();
     selector.reconcile(&config);
     let outbound = selector.choose(&config, &config.final_policy, Instant::now())?;
@@ -93,6 +101,29 @@ mod tests {
         TlsAcceptor,
         rustls::{ServerConfig, pki_types::PrivatePkcs8KeyDer},
     };
+
+    #[tokio::test]
+    async fn direct_mode_preflight_does_not_resolve_the_unused_proxy() {
+        let mut config = Config {
+            routing_mode: RoutingMode::Direct,
+            final_policy: "unused".into(),
+            ..Config::default()
+        };
+        config.nodes.push(
+            serde_json::from_value(json!({
+                "name":"unused", "kind":"socks5", "server":"blocked.invalid", "port":9
+            }))
+            .unwrap(),
+        );
+        config.privacy.blocked_domains = vec!["blocked.invalid".into()];
+        let ready = preflight(config.clone()).await.unwrap();
+        assert_eq!(ready["outbound"], "DIRECT");
+        assert_eq!(ready["dnsRequired"], false);
+        config.routing_mode = RoutingMode::Global;
+        assert!(
+            format!("{:#}", preflight(config).await.unwrap_err()).contains("DNS lookup blocked")
+        );
+    }
 
     async fn fixture(proxy_status: &str, response: &str, trust: bool) -> Result<Value> {
         let _ = rustls::crypto::ring::default_provider().install_default();

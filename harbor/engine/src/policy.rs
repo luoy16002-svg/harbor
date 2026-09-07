@@ -1,4 +1,4 @@
-use crate::config::{Config, GroupKind, RuleKind};
+use crate::config::{Config, GroupKind, RoutingMode, RuleKind};
 use anyhow::{Result, bail};
 use ipnet::IpNet;
 use serde::Serialize;
@@ -187,25 +187,37 @@ pub fn decide_filtered(
         });
     }
     let ip = host.parse::<IpAddr>().ok();
-    let matched = config.rules.iter().enumerate().find(|(_, rule)| {
-        if !rule.enabled {
-            return false;
-        }
-        let value = rule.value.trim_end_matches('.').to_lowercase();
-        match rule.kind {
-            RuleKind::Domain => ip.is_none() && host == value,
-            RuleKind::DomainSuffix => {
-                ip.is_none() && (host == value || host.ends_with(&format!(".{value}")))
+    let matched = if config.routing_mode == RoutingMode::Rules {
+        config.rules.iter().enumerate().find(|(_, rule)| {
+            if !rule.enabled {
+                return false;
             }
-            RuleKind::DomainKeyword => ip.is_none() && host.contains(&value),
-            RuleKind::IpCidr => {
-                ip.is_some_and(|ip| value.parse::<IpNet>().is_ok_and(|net| net.contains(&ip)))
+            let value = rule.value.trim_end_matches('.').to_lowercase();
+            match rule.kind {
+                RuleKind::Domain => ip.is_none() && host == value,
+                RuleKind::DomainSuffix => {
+                    ip.is_none() && (host == value || host.ends_with(&format!(".{value}")))
+                }
+                RuleKind::DomainKeyword => ip.is_none() && host.contains(&value),
+                RuleKind::IpCidr => {
+                    ip.is_some_and(|ip| value.parse::<IpNet>().is_ok_and(|net| net.contains(&ip)))
+                }
+                RuleKind::Port => value.parse::<u16>() == Ok(port),
+                RuleKind::Protocol => value == protocol,
             }
-            RuleKind::Port => value.parse::<u16>() == Ok(port),
-            RuleKind::Protocol => value == protocol,
-        }
-    });
-    let (policy, reason, rule_index) = if let Some((index, rule)) = matched {
+        })
+    } else {
+        None
+    };
+    let (policy, reason, rule_index) = if config.routing_mode == RoutingMode::Direct {
+        ("DIRECT".into(), "MODE · Direct".into(), None)
+    } else if config.routing_mode == RoutingMode::Global {
+        (
+            config.final_policy.clone(),
+            "MODE · Global outbound".into(),
+            None,
+        )
+    } else if let Some((index, rule)) = matched {
         (
             rule.policy.clone(),
             format!("{:?} · {}", rule.kind, rule.value),
@@ -233,6 +245,104 @@ pub fn decide_filtered(
 mod tests {
     use super::*;
     use crate::config::{Group, Rule};
+    #[test]
+    fn routing_modes_preserve_legacy_rules_and_use_selected_groups() {
+        let mut config = Config::default();
+        config.nodes.push(
+            serde_json::from_value(serde_json::json!({
+                "name":"fixture", "kind":"socks5", "server":"127.0.0.1", "port":9
+            }))
+            .unwrap(),
+        );
+        config.groups.push(Group {
+            name: "chosen".into(),
+            kind: GroupKind::Select,
+            members: vec!["fixture".into(), "DIRECT".into()],
+            selected: Some("fixture".into()),
+        });
+        config.final_policy = "chosen".into();
+        let mut legacy = serde_json::to_value(&config).unwrap();
+        legacy.as_object_mut().unwrap().remove("routingMode");
+        let legacy: Config = serde_json::from_value(legacy).unwrap();
+        assert_eq!(legacy.routing_mode, RoutingMode::Rules);
+        let mut selector = Selector::default();
+        let rules = decide(&legacy, &mut selector, "localhost", 443, "tcp", 1).unwrap();
+        assert_eq!(rules.outbound, "DIRECT");
+        assert_eq!(rules.rule_index, Some(1));
+        config.routing_mode = RoutingMode::Global;
+        config.validate().unwrap();
+        for protocol in ["tcp", "udp"] {
+            let global = decide(&config, &mut selector, "localhost", 443, protocol, 2).unwrap();
+            assert_eq!(global.policy, "chosen");
+            assert_eq!(global.outbound, "fixture");
+            assert_eq!(global.rule_index, None);
+            assert_eq!(global.generation, 2);
+        }
+        config.routing_mode = RoutingMode::Direct;
+        let direct = decide(&config, &mut selector, "example.invalid", 443, "tcp", 3).unwrap();
+        assert_eq!(direct.policy, "DIRECT");
+        assert_eq!(direct.outbound, "DIRECT");
+        assert_eq!(direct.rule_index, None);
+        config.routing_mode = RoutingMode::Rules;
+        assert_eq!(
+            decide(&config, &mut selector, "localhost", 443, "tcp", 4)
+                .unwrap()
+                .rule_index,
+            Some(1)
+        );
+        assert_eq!(config.rules.len(), legacy.rules.len());
+        let mut unknown = serde_json::to_value(config).unwrap();
+        unknown["routingMode"] = serde_json::json!("unknown");
+        assert!(serde_json::from_value::<Config>(unknown).is_err());
+    }
+
+    #[test]
+    fn every_routing_mode_preserves_privacy_and_group_failure() {
+        let mut config = Config::default();
+        config.nodes.push(
+            serde_json::from_value(serde_json::json!({
+                "name":"fixture", "kind":"socks5", "server":"127.0.0.1", "port":9
+            }))
+            .unwrap(),
+        );
+        config.privacy.blocked_domains = vec!["blocked.invalid".into()];
+        config.privacy.block_direct = true;
+        config.privacy.require_encrypted_proxy = true;
+        for mode in [RoutingMode::Rules, RoutingMode::Global, RoutingMode::Direct] {
+            config.routing_mode = mode;
+            for policy in ["DIRECT", "fixture"] {
+                config.final_policy = policy.into();
+                for protocol in ["tcp", "udp"] {
+                    let mut selector = Selector::default();
+                    let blocked =
+                        decide(&config, &mut selector, "blocked.invalid", 443, protocol, 1)
+                            .unwrap();
+                    assert_eq!(blocked.outbound, "REJECT");
+                    assert!(blocked.reason.contains("domain block"));
+                    let restricted =
+                        decide(&config, &mut selector, "other.invalid", 443, protocol, 1).unwrap();
+                    assert_eq!(restricted.outbound, "REJECT");
+                    assert!(restricted.reason.starts_with("Privacy:"));
+                }
+            }
+        }
+        config.privacy.require_encrypted_proxy = false;
+        config.routing_mode = RoutingMode::Global;
+        config.groups.push(Group {
+            name: "auto".into(),
+            kind: GroupKind::Fallback,
+            members: vec!["fixture".into()],
+            selected: None,
+        });
+        config.final_policy = "auto".into();
+        config.validate().unwrap();
+        let mut selector = Selector::default();
+        for _ in 0..3 {
+            selector.record("fixture", None, Instant::now());
+        }
+        assert!(decide(&config, &mut selector, "other.invalid", 443, "tcp", 1).is_err());
+    }
+
     #[test]
     fn suffix_has_label_boundary_and_updates_are_validated() {
         let mut c = Config::default();
