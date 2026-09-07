@@ -1,0 +1,5 @@
+[env]
+# A bounded 64 KiB assembly buffer permits ordinary fragmented UDP responses.
+SMOLTCP_FRAGMENTATION_BUFFER_SIZE = "65536"
+SMOLTCP_ASSEMBLER_MAX_SEGMENT_COUNT = "32"
+

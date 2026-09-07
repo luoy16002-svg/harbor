@@ -1,0 +1,737 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:local="clr-namespace:Harbor" xmlns:sys="clr-namespace:System;assembly=System.Runtime" xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="Harbor.MainWindow" Title="Harbor" Width="1280" Height="840" MinWidth="960" MinHeight="660" WindowStartupLocation="CenterScreen" FontFamily="Microsoft YaHei UI" Foreground="{StaticResource Ink}" Background="#F5F7F5" Loaded="WindowLoaded" Closing="WindowClosing" WindowStyle="None" ResizeMode="CanResize" SizeChanged="WindowSizeChanged">
+  <shell:WindowChrome.WindowChrome>
+    <shell:WindowChrome CaptionHeight="54" ResizeBorderThickness="7" CornerRadius="8" GlassFrameThickness="0" UseAeroCaptionButtons="False" />
+  </shell:WindowChrome.WindowChrome>
+  <Grid Background="#F5F7F5">
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="184" />
+      <ColumnDefinition Width="*" />
+    </Grid.ColumnDefinitions>
+    <Border Background="#EEF1EF" BorderBrush="#E0E7E2" BorderThickness="0">
+      <DockPanel Margin="12,24,12,18">
+        <StackPanel DockPanel.Dock="Top" Margin="12,0,0,34">
+          <StackPanel Orientation="Horizontal">
+            <Image Source="Assets/harbor.png" Width="34" Height="34" Margin="-2,-2,8,-2" RenderOptions.BitmapScalingMode="HighQuality" AutomationProperties.Name="Harbor 标志"/>
+            <TextBlock Text="Harbor" FontSize="22" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{StaticResource Ink}" />
+          </StackPanel>
+          <TextBlock Text="网络与隐私" FontSize="11" Foreground="#65776D" Margin="0,12,0,0" />
+        </StackPanel>
+        <StackPanel DockPanel.Dock="Bottom">
+          <Border Height="1" Background="#DEE5E0" Margin="10,0,10,16" />
+          <StackPanel Orientation="Horizontal" Margin="12,0,0,7">
+            <Ellipse x:Name="StatusDot" Width="6" Height="6" Fill="#94A29A" Margin="0,0,7,0" />
+            <TextBlock x:Name="SidebarStatus" Text="引擎未启动" FontSize="11" Foreground="#65776D" />
+          </StackPanel>
+          <TextBlock Text="0.4.0 · Windows x64" Margin="12,0,0,0" FontSize="10" Foreground="#65776D" />
+        </StackPanel>
+        <StackPanel>
+          <Button x:Name="NavOverview" Style="{StaticResource Nav}" Tag="Overview" Click="Navigate" Background="#DFE9E4">
+            <StackPanel Orientation="Horizontal">
+              <Path Data="M2,2 L8,2 L8,8 L2,8 Z M12,2 L18,2 L18,8 L12,8 Z M2,12 L8,12 L8,18 L2,18 Z M12,12 L18,12 L18,18 L12,18 Z" Width="17" Height="17" Stretch="Uniform" Stroke="#65776D" StrokeThickness="1.3" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Margin="0,0,14,0" />
+              <TextBlock Text="总览" FontFamily="Microsoft YaHei UI" FontSize="13" />
+            </StackPanel>
+          </Button>
+          <Button x:Name="NavConnections" Style="{StaticResource Nav}" Tag="Connections" Click="Navigate">
+            <StackPanel Orientation="Horizontal">
+              <Path Data="M2,6 L18,6 M14,2 L18,6 L14,10 M18,14 L2,14 M6,10 L2,14 L6,18" Width="17" Height="17" Stretch="Uniform" Stroke="#65776D" StrokeThickness="1.3" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Margin="0,0,14,0" />
+              <TextBlock Text="连接" FontFamily="Microsoft YaHei UI" FontSize="13" />
+            </StackPanel>
+          </Button>
+          <Button x:Name="NavNodes" Style="{StaticResource Nav}" Tag="Nodes" Click="Navigate">
+            <StackPanel Orientation="Horizontal">
+              <Path Data="M10,2 A3,3 0 1 0 10,8 A3,3 0 1 0 10,2 M4,13 A3,3 0 1 0 4,19 A3,3 0 1 0 4,13 M16,13 A3,3 0 1 0 16,19 A3,3 0 1 0 16,13 M8,8 L5,13 M12,8 L15,13" Width="17" Height="17" Stretch="Uniform" Stroke="#65776D" StrokeThickness="1.3" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Margin="0,0,14,0" />
+              <TextBlock Text="线路" FontFamily="Microsoft YaHei UI" FontSize="13" />
+            </StackPanel>
+          </Button>
+          <Button x:Name="NavSubscriptions" Visibility="Collapsed" Style="{StaticResource Nav}" Tag="Subscriptions" Click="Navigate">
+            <StackPanel Orientation="Horizontal">
+              <Path Data="M4,2 L14,2 L18,6 L18,18 L4,18 Z M14,2 L14,6 L18,6 M8,9 L14,9 M8,13 L14,13" Width="17" Height="17" Stretch="Uniform" Stroke="#65776D" StrokeThickness="1.3" StrokeLineJoin="Round" Margin="0,0,14,0" />
+              <TextBlock Text="订阅" FontFamily="Microsoft YaHei UI" FontSize="13" />
+            </StackPanel>
+          </Button>
+          <Button x:Name="NavRouting" Style="{StaticResource Nav}" Tag="Routing" Click="Navigate">
+            <StackPanel Orientation="Horizontal">
+              <Path Data="M4,2 L4,17 M4,7 L11,7 L16,2 M11,7 L16,12 M12,2 L16,2 L16,6 M12,12 L16,12 L16,8" Width="17" Height="17" Stretch="Uniform" Stroke="#65776D" StrokeThickness="1.3" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Margin="0,0,14,0" />
+              <TextBlock Text="分流" FontFamily="Microsoft YaHei UI" FontSize="13" />
+            </StackPanel>
+          </Button>
+          <Button x:Name="NavDns" Visibility="Collapsed" Style="{StaticResource Nav}" Tag="Dns" Click="Navigate">
+            <StackPanel Orientation="Horizontal">
+              <Path Data="M10,1 A9,9 0 1 0 10,19 A9,9 0 1 0 10,1 M1,10 L19,10 M10,1 C4,6 4,14 10,19 M10,1 C16,6 16,14 10,19" Width="17" Height="17" Stretch="Uniform" Stroke="#65776D" StrokeThickness="1.3" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Margin="0,0,14,0" />
+              <TextBlock Text="DNS" FontFamily="Microsoft YaHei UI" FontSize="13" />
+            </StackPanel>
+          </Button>
+          <Button x:Name="NavPrivacy" Style="{StaticResource Nav}" Tag="Privacy" Click="Navigate">
+            <StackPanel Orientation="Horizontal">
+              <Path Data="M10,1 L18,4 L17,12 Q15,17 10,20 Q5,17 3,12 L2,4 Z M6,10 L9,13 L14,7" Width="17" Height="17" Stretch="Uniform" Stroke="#65776D" StrokeThickness="1.3" Margin="0,0,14,0" />
+              <TextBlock Text="隐私保护" />
+            </StackPanel>
+          </Button>
+          <Button x:Name="NavNetwork" Style="{StaticResource Nav}" Tag="Network" Click="Navigate">
+            <StackPanel Orientation="Horizontal">
+              <Path Data="M2,3 L18,3 L18,14 L2,14 Z M6,18 L14,18 M10,14 L10,18" Width="17" Height="17" Stretch="Uniform" Stroke="#65776D" StrokeThickness="1.3" Margin="0,0,14,0" />
+              <TextBlock Text="网络管理" />
+            </StackPanel>
+          </Button>
+          <Button x:Name="NavDiagnostics" Visibility="Collapsed" Style="{StaticResource Nav}" Tag="Diagnostics" Click="Navigate">
+            <StackPanel Orientation="Horizontal">
+              <Path Data="M1,11 L5,11 L8,3 L12,17 L15,8 L18,8" Width="17" Height="17" Stretch="Uniform" Stroke="#65776D" StrokeThickness="1.3" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Margin="0,0,14,0" />
+              <TextBlock Text="诊断" FontFamily="Microsoft YaHei UI" FontSize="13" />
+            </StackPanel>
+          </Button>
+          <Button x:Name="NavSettings" Style="{StaticResource Nav}" Tag="Settings" Click="Navigate" Margin="0,20,0,0">
+            <StackPanel Orientation="Horizontal">
+              <Path Data="M3,4 L17,4 M3,10 L17,10 M3,16 L17,16 M7,1 L7,7 M13,7 L13,13 M7,13 L7,19" Width="17" Height="17" Stretch="Uniform" Stroke="#65776D" StrokeThickness="1.3" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Margin="0,0,14,0" />
+              <TextBlock Text="设置" FontFamily="Microsoft YaHei UI" FontSize="13" />
+            </StackPanel>
+          </Button>
+        </StackPanel>
+      </DockPanel>
+    </Border>
+    <Grid Grid.Column="1">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="54" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+        <RowDefinition Height="30" />
+      </Grid.RowDefinitions>
+      <Border Background="#F5F7F5" Padding="24,0,6,0">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <TextBlock x:Name="Breadcrumb" Text="总览" FontSize="13" Foreground="#566B5E" VerticalAlignment="Center" />
+            <Border Background="#E7EEE9" CornerRadius="4" Padding="9,4" Margin="14,0,0,0">
+              <TextBlock x:Name="ModeLabel" Text="系统代理" Foreground="#3D6A5B" FontSize="11" />
+            </Border>
+          </StackPanel>
+          <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" shell:WindowChrome.IsHitTestVisibleInChrome="True">
+            <TextBlock x:Name="RunState" Text="已停止" VerticalAlignment="Center" FontSize="11" Foreground="#637469" Margin="0,0,14,0" />
+            <Button x:Name="ConnectButton" Content="连接" Style="{StaticResource Primary}" Padding="15,7" Click="ToggleEngine" Margin="0,0,18,0" />
+          </StackPanel>
+          <StackPanel Grid.Column="2" Orientation="Horizontal" shell:WindowChrome.IsHitTestVisibleInChrome="True">
+            <Button Style="{StaticResource CaptionButton}" Click="MinimizeWindow" ToolTip="最小化" AutomationProperties.Name="最小化">
+              <Path Data="M0,5 L11,5" Stroke="#5B6F60" StrokeThickness="1" />
+            </Button>
+            <Button Style="{StaticResource CaptionButton}" Click="MaximizeWindow" ToolTip="最大化 / 还原" AutomationProperties.Name="最大化或还原">
+              <Path Data="M1,1 L11,1 L11,11 L1,11 Z" Stroke="#5B6F60" StrokeThickness="1" />
+            </Button>
+            <Button Style="{StaticResource CaptionButton}" Click="CloseWindow" ToolTip="关闭" AutomationProperties.Name="关闭窗口">
+              <Path Data="M1,1 L11,11 M11,1 L1,11" Stroke="#5B6F60" StrokeThickness="1.2" />
+            </Button>
+          </StackPanel>
+        </Grid>
+      </Border>
+      <Border x:Name="Notice" Grid.Row="1" Visibility="Collapsed" Background="#FFF3DC" BorderBrush="#EDD8B1" BorderThickness="0,0,0,1" Padding="30,12">
+        <DockPanel>
+          <Button DockPanel.Dock="Right" Content="关闭" Padding="8,2" Background="Transparent" BorderThickness="0" Click="DismissNotice" />
+          <TextBlock x:Name="NoticeText" TextWrapping="Wrap" Foreground="#806132" FontSize="12" VerticalAlignment="Center" />
+        </DockPanel>
+      </Border>
+      <Grid Grid.Row="2" Margin="24,18,20,14">
+        <ScrollViewer x:Name="OverviewPage" VerticalScrollBarVisibility="Auto">
+          <StackPanel>
+            <TextBlock Text="总览" Style="{StaticResource Heading}" />
+            <TextBlock x:Name="OverviewSubtitle" Text="选择线路、查看流量，以及管理应用的网络路径。" Style="{StaticResource Hint}" Margin="0,0,0,22" />
+            <Border Style="{StaticResource Panel}" Padding="22,18" Margin="0,0,0,18" Background="#EDF3EE">
+              <StackPanel>
+                <DockPanel>
+                  <Button x:Name="HomeAdd" Content="添加线路" Click="AddLines" DockPanel.Dock="Right" HorizontalAlignment="Right"/>
+                  <TextBlock x:Name="HomeCheckResult" Text="尚未验证" DockPanel.Dock="Right" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="12,0,14,0" FontSize="11" Foreground="{StaticResource Muted}" MaxWidth="260" TextTrimming="CharacterEllipsis"/>
+                  <TextBlock x:Name="HomeTitle" Text="从第一条线路开始" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                </DockPanel>
+                <TextBlock x:Name="HomeDescription" Style="{StaticResource Hint}" Margin="0,8,0,16"/>
+                <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="14"/><ColumnDefinition Width="210"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                  <StackPanel><TextBlock Text="默认出口" Style="{StaticResource Hint}" Margin="0,0,0,7"/><ComboBox x:Name="HomePolicy" SelectionChanged="HomePolicyChanged"/></StackPanel>
+                  <StackPanel Grid.Column="2"><TextBlock Text="连接方式" Style="{StaticResource Hint}" Margin="0,0,0,7"/><ComboBox x:Name="HomeMode" SelectionChanged="HomeModeChanged"><sys:String>系统代理 · 常用</sys:String><sys:String>应用代理 · 手动指定</sys:String><sys:String>增强模式 · TUN 实验</sys:String></ComboBox></StackPanel>
+                  <Button x:Name="HomeVerify" Grid.Column="3" Content="验证线路" Click="VerifySelected" VerticalAlignment="Bottom" Margin="12,0,0,0" ToolTip="通过此线路完成到 www.example.com 的 HTTPS 请求；不修改系统网络设置。"/>
+                </Grid>
+                <TextBlock x:Name="ModeDescription" Style="{StaticResource Hint}" Margin="0,11,0,0"/>
+                <DockPanel x:Name="HeroStatusRow" Margin="0,16,0,0"><TextBlock x:Name="OnboardingSteps" FontSize="11" Foreground="{StaticResource Accent}" TextTrimming="CharacterEllipsis"/></DockPanel>
+              </StackPanel>
+            </Border>
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition />
+                <ColumnDefinition x:Name="OverviewGap" Width="18" />
+                <ColumnDefinition x:Name="OverviewRailWidth" Width="248" />
+              </Grid.ColumnDefinitions>
+              <StackPanel>
+                <Border Style="{StaticResource Panel}" Padding="20" Margin="0,0,0,18">
+                  <StackPanel>
+                    <DockPanel>
+                      <TextBlock Text="实时流量" FontWeight="SemiBold" />
+                      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+                        <TextBlock Text="下载" FontSize="11" Foreground="#397AAA" Margin="0,0,15,0" />
+                        <TextBlock Text="上传" FontSize="11" Foreground="#579B85" />
+                      </StackPanel>
+                    </DockPanel>
+                    <Grid Margin="0,20,0,22">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition />
+                        <ColumnDefinition />
+                        <ColumnDefinition />
+                      </Grid.ColumnDefinitions>
+                      <StackPanel>
+                        <TextBlock x:Name="DownloadRate" Text="0 B/s" FontSize="27" FontWeight="SemiBold" />
+                        <TextBlock Text="下载速率" Style="{StaticResource Hint}" Margin="0,5,0,0" />
+                      </StackPanel>
+                      <StackPanel Grid.Column="1">
+                        <TextBlock x:Name="UploadRate" Text="0 B/s" FontSize="27" FontWeight="SemiBold" />
+                        <TextBlock Text="上传速率" Style="{StaticResource Hint}" Margin="0,5,0,0" />
+                      </StackPanel>
+                      <StackPanel Grid.Column="2">
+                        <StackPanel Orientation="Horizontal">
+                          <TextBlock x:Name="ActiveCount" Text="0" FontSize="27" FontWeight="SemiBold" />
+                          <TextBlock x:Name="TotalCount" Text="/ 共 0 条" Style="{StaticResource Hint}" Margin="10,0,0,3" VerticalAlignment="Bottom" />
+                        </StackPanel>
+                        <TextBlock Text="活跃连接" Style="{StaticResource Hint}" Margin="0,5,0,0" />
+                      </StackPanel>
+                    </Grid>
+                    <local:TrafficChart x:Name="Chart" Height="180" />
+                  </StackPanel>
+                </Border>
+                <Border Style="{StaticResource Panel}" Padding="0">
+                  <StackPanel>
+                    <DockPanel Margin="20,17">
+                      <TextBlock Text="最近连接" FontWeight="SemiBold" />
+                      <Button Content="查看全部" DockPanel.Dock="Right" Tag="Connections" Click="Navigate" Padding="0" BorderThickness="0" HorizontalAlignment="Right" Foreground="{StaticResource Accent}" />
+                    </DockPanel>
+                    <Grid>
+                      <DataGrid x:Name="RecentGrid" Height="214">
+                        <DataGrid.Columns>
+                          <DataGridTextColumn Header="目标" Binding="{Binding Destination}" Width="*" />
+                          <DataGridTextColumn Header="出口" Binding="{Binding Outbound}" Width="115" />
+                          <DataGridTextColumn Header="流量" Binding="{Binding Traffic}" Width="88" />
+                          <DataGridTextColumn Header="状态" Binding="{Binding State}" Width="72" />
+                          <DataGridTemplateColumn Header="原因" Width="160"><DataGridTemplateColumn.CellTemplate><DataTemplate><TextBlock Text="{Binding Failure}" ToolTip="{Binding Error}" TextTrimming="CharacterEllipsis"/></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                      </DataGrid>
+                      <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="20,36,20,0" IsHitTestVisible="False">
+                        <StackPanel.Style>
+                          <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                              <DataTrigger Binding="{Binding HasItems, ElementName=RecentGrid}" Value="False">
+                                <Setter Property="Visibility" Value="Visible" />
+                              </DataTrigger>
+                            </Style.Triggers>
+                          </Style>
+                        </StackPanel.Style>
+                        <TextBlock Text="尚无连接" TextAlignment="Center" FontSize="15" Foreground="#53695C" />
+                        <TextBlock Text="启动后显示实际流量与规则结果。" Style="{StaticResource Hint}" TextAlignment="Center" Margin="0,9,0,0" />
+                      </StackPanel>
+                    </Grid>
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+              <StackPanel x:Name="OverviewRail" Grid.Column="2">
+                <Border Style="{StaticResource Panel}" Padding="17" Margin="0,0,0,16">
+                  <StackPanel>
+                    <TextBlock Text="当前默认路径" Style="{StaticResource Section}" />
+                    <TextBlock Text="01  本地入口" Foreground="#65786B" FontSize="11" />
+                    <TextBlock x:Name="ProxyAddress" Text="127.0.0.1:7897" FontFamily="Consolas" FontSize="12" Margin="0,7,0,14" />
+                    <Border Height="1" Background="{StaticResource Line}" Margin="0,0,0,14" />
+                    <TextBlock Text="02  分流出口" Foreground="#65786B" FontSize="11" />
+                    <TextBlock x:Name="PolicySummary" Text="DIRECT" FontSize="20" FontWeight="SemiBold" Margin="0,8,0,9" />
+                    <TextBlock x:Name="PolicyDetail" Text="未命中规则的连接使用直连。" Style="{StaticResource Hint}" />
+                    <Button Content="预演规则变化" Tag="Routing" Click="Navigate" Margin="0,14,0,0" />
+                  </StackPanel>
+                </Border>
+                <Border Style="{StaticResource Panel}" Padding="17" Margin="0,0,0,16">
+                  <StackPanel>
+                    <TextBlock Text="隐私设置" Style="{StaticResource Section}" />
+                    <TextBlock x:Name="PrivacyOverview" Text="按实际配置显示保护状态。" Style="{StaticResource Hint}" />
+                    <Button Content="管理隐私" Tag="Privacy" Click="Navigate" Margin="0,14,0,0" />
+                  </StackPanel>
+                </Border>
+                <Border Style="{StaticResource Panel}" Padding="17">
+                  <StackPanel>
+                    <DockPanel Margin="0,0,0,14">
+                      <TextBlock Text="网络共存" FontWeight="SemiBold" />
+                      <TextBlock x:Name="RecoveryBadge" Text="本地模式" DockPanel.Dock="Right" Foreground="#448A78" FontSize="10" HorizontalAlignment="Right" />
+                    </DockPanel>
+                    <TextBlock x:Name="RecoveryText" Text="未接管系统代理。" Style="{StaticResource Hint}" />
+                    <TextBlock x:Name="GuardianText" Text="共存保护默认开启。" Style="{StaticResource Hint}" Margin="0,10,0,14" />
+                    <Button Content="检查网络状态" Tag="Network" Click="Navigate" Padding="10,7" />
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+            </Grid>
+          </StackPanel>
+        </ScrollViewer>
+        <Grid x:Name="ConnectionsPage" Visibility="Collapsed">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
+          <StackPanel>
+            <TextBlock Text="连接" Style="{StaticResource Heading}" />
+            <TextBlock Text="查看目标、命中规则和实际出口。连接不因规则更新而改道。" Style="{StaticResource Hint}" Margin="0,0,0,22" />
+          </StackPanel>
+          <DockPanel Grid.Row="1" Margin="0,0,0,16">
+            <Button DockPanel.Dock="Right" Content="关闭选中连接" Click="CloseSelectedFlow" IsEnabled="{Binding SelectedItem, ElementName=FlowGrid, Converter={StaticResource HasSelection}}" />
+            <TextBox x:Name="FlowSearch" Width="300" HorizontalAlignment="Left" ToolTip="按目标、策略或出口筛选" TextChanged="FilterFlows" />
+          </DockPanel>
+          <Border Grid.Row="2" Style="{StaticResource Panel}" Padding="0">
+            <Grid>
+              <DataGrid x:Name="FlowGrid" SelectionChanged="FlowSelected">
+                <DataGrid.Columns>
+                  <DataGridTextColumn Header="目标" Binding="{Binding Destination}" Width="*" />
+                  <DataGridTextColumn Header="协议" Binding="{Binding Protocol}" Width="85" />
+                  <DataGridTextColumn Header="出口" Binding="{Binding Outbound}" Width="130" />
+                  <DataGridTextColumn Header="流量" Binding="{Binding Traffic}" Width="105" />
+                  <DataGridTextColumn Header="状态" Binding="{Binding State}" Width="80" />
+                </DataGrid.Columns>
+              </DataGrid>
+              <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="20,42,20,0" IsHitTestVisible="False">
+                <StackPanel.Style>
+                  <Style TargetType="StackPanel">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding HasItems, ElementName=FlowGrid}" Value="False">
+                        <Setter Property="Visibility" Value="Visible" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </StackPanel.Style>
+                <TextBlock Text="这里会显示经过 Harbor 的连接" FontSize="14" Foreground="#53616C" TextAlignment="Center" />
+                <TextBlock Text="启动连接后，可按目标、出口或策略筛选。" Style="{StaticResource Hint}" TextAlignment="Center" Margin="0,10,0,0" />
+              </StackPanel>
+            </Grid>
+          </Border>
+          <Border Grid.Row="3" Background="#ECF1ED" Padding="16" Margin="0,14,0,0" CornerRadius="5">
+            <TextBlock x:Name="FlowDetail" Text="选择一条连接查看分流依据。" Style="{StaticResource Hint}" />
+          </Border>
+        </Grid>
+        <Grid x:Name="NodesPage" Visibility="Collapsed">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+          </Grid.RowDefinitions>
+          <StackPanel>
+            <DockPanel><Button Content="管理订阅" Tag="Subscriptions" Click="Navigate" DockPanel.Dock="Right" HorizontalAlignment="Right"/><TextBlock Text="线路" Style="{StaticResource Heading}" /></DockPanel>
+            <TextBlock x:Name="NodeCount" Text="导入后请验证实际连通性" Style="{StaticResource Hint}" Margin="0,0,0,22" />
+          </StackPanel>
+          <DockPanel Grid.Row="1" Margin="0,0,0,16">
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+              <Button Content="验证选中线路" Click="VerifySelected" Margin="0,0,8,0" IsEnabled="{Binding SelectedItem, ElementName=NodeGrid, Converter={StaticResource HasSelection}}"/>
+              <Button Content="手动配置" Click="AddNode" Margin="0,0,8,0" />
+              <Button Content="添加线路" Style="{StaticResource Primary}" Click="AddLines" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal">
+              <Button Content="设为出口" Click="UseSelectedNode" Margin="0,0,8,0" IsEnabled="{Binding SelectedItem, ElementName=NodeGrid, Converter={StaticResource HasSelection}}"/><Button Content="编辑" Click="EditNode" IsEnabled="{Binding SelectedItem, ElementName=NodeGrid, Converter={StaticResource HasSelection}}" Margin="0,0,8,0" />
+              <Button Content="移除" Click="RemoveNode" IsEnabled="{Binding SelectedItem, ElementName=NodeGrid, Converter={StaticResource HasSelection}}" />
+            </StackPanel>
+          </DockPanel>
+          <Grid Grid.Row="2" Margin="0,0,0,14">
+            <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="170"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+            <TextBox x:Name="NodeSearch" TextChanged="FilterNodes" Margin="0,0,10,0" ToolTip="按名称、协议或服务器搜索" AutomationProperties.Name="搜索线路"/>
+            <TextBlock Text="搜索名称、协议或服务器" Margin="12,0,10,0" Foreground="{StaticResource Muted}" VerticalAlignment="Center" IsHitTestVisible="False"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Text, ElementName=NodeSearch}" Value=""><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
+            <ComboBox x:Name="NodeFilter" Grid.Column="1" SelectedIndex="0" SelectionChanged="FilterNodes" AutomationProperties.Name="按验证结果筛选"><sys:String>全部线路</sys:String><sys:String>最近验证成功</sys:String><sys:String>未验证或需复测</sys:String><sys:String>最近验证未通过</sys:String></ComboBox>
+            <Button Grid.Column="2" Content="重置筛选" Click="ResetNodeFilter" Margin="10,0,0,0"/>
+            <Button Grid.Column="3" Content="清除验证记录" Click="ClearLineChecks" Margin="10,0,0,0"/>
+          </Grid>
+          <Border Grid.Row="3" Style="{StaticResource Panel}" Padding="0">
+            <Grid>
+              <DataGrid x:Name="NodeGrid" MouseDoubleClick="EditNode">
+                <DataGrid.Columns>
+                  <DataGridTextColumn Header="名称" Binding="{Binding Name}" Width="*" />
+                  <DataGridTextColumn Header="协议" Binding="{Binding Kind}" Width="85" />
+                  <DataGridTextColumn Header="代理传输" Binding="{Binding Security}" Width="110" />
+                  <DataGridTextColumn Header="TCP 延迟" Binding="{Binding Latency}" Width="100" />
+                  <DataGridTextColumn Header="TCP 探测" Binding="{Binding State}" Width="90" />
+                  <DataGridTemplateColumn Header="HTTPS 转发验证" Width="210"><DataGridTemplateColumn.CellTemplate><DataTemplate><TextBlock Text="{Binding Verification}" ToolTip="{Binding VerificationDetail}" TextTrimming="CharacterEllipsis"/></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                </DataGrid.Columns>
+                <DataGrid.RowStyle><Style TargetType="DataGridRow"><Setter Property="ToolTip" Value="{Binding Server}"/><Style.Triggers><DataTrigger Binding="{Binding IsDefault}" Value="True"><Setter Property="FontWeight" Value="SemiBold"/></DataTrigger></Style.Triggers></Style></DataGrid.RowStyle>
+              </DataGrid>
+              <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="20,42,20,0" IsHitTestVisible="False">
+                <StackPanel.Style>
+                  <Style TargetType="StackPanel">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding HasItems, ElementName=NodeGrid}" Value="False">
+                        <Setter Property="Visibility" Value="Visible" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </StackPanel.Style>
+                <TextBlock x:Name="NodeEmptyTitle" Text="还没有线路" FontSize="14" Foreground="#53616C" TextAlignment="Center" />
+                <TextBlock x:Name="NodeEmptyHint" Text="从订阅或文件导入，也可以手动添加。" Style="{StaticResource Hint}" TextAlignment="Center" Margin="0,10,0,0" />
+              </StackPanel>
+            </Grid>
+          </Border>
+        </Grid>
+        <Grid x:Name="SubscriptionsPage" Visibility="Collapsed">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
+          <StackPanel>
+            <DockPanel><Button Content="返回线路" Tag="Nodes" Click="Navigate" DockPanel.Dock="Right" HorizontalAlignment="Right"/><TextBlock Text="订阅" Style="{StaticResource Heading}" /></DockPanel>
+            <TextBlock Text="HTTPS 下载，自动识别 Clash YAML、Base64、分享链接和 SIP008 JSON。" Style="{StaticResource Hint}" Margin="0,0,0,22" />
+          </StackPanel>
+          <DockPanel Grid.Row="1" Margin="0,0,0,16">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+              <Button Content="更新选中订阅" Click="RefreshSubscription" IsEnabled="{Binding SelectedItem, ElementName=SubscriptionGrid, Converter={StaticResource HasSelection}}" Margin="0,0,8,0" />
+              <Button Content="添加订阅" Click="AddSubscription" Style="{StaticResource Primary}" />
+            </StackPanel>
+            <Button Content="移除订阅记录" Click="RemoveSubscription" IsEnabled="{Binding SelectedItem, ElementName=SubscriptionGrid, Converter={StaticResource HasSelection}}" HorizontalAlignment="Left" />
+          </DockPanel>
+          <Border Grid.Row="2" Style="{StaticResource Panel}" Padding="0">
+            <Grid>
+              <DataGrid x:Name="SubscriptionGrid">
+                <DataGrid.Columns>
+                  <DataGridTextColumn Header="订阅" Binding="{Binding Name}" Width="130" />
+                  <DataGridTextColumn Header="地址" Binding="{Binding Address}" Width="*" />
+                  <DataGridTextColumn Header="节点" Binding="{Binding Count}" Width="65" />
+                  <DataGridTextColumn Header="不支持" Binding="{Binding Unsupported}" Width="80" />
+                  <DataGridTextColumn Header="最近更新" Binding="{Binding Updated}" Width="135" />
+                </DataGrid.Columns>
+              </DataGrid>
+              <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="20,42,20,0" IsHitTestVisible="False">
+                <StackPanel.Style>
+                  <Style TargetType="StackPanel">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding HasItems, ElementName=SubscriptionGrid}" Value="False">
+                        <Setter Property="Visibility" Value="Visible" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </StackPanel.Style>
+                <TextBlock Text="添加你的第一份订阅" FontSize="14" Foreground="#53616C" TextAlignment="Center" />
+                <TextBlock Text="填入 HTTPS 地址，预览可导入节点后再导入。" Style="{StaticResource Hint}" TextAlignment="Center" Margin="0,10,0,0" />
+              </StackPanel>
+            </Grid>
+          </Border>
+          <Border Grid.Row="3" Background="#ECF1ED" CornerRadius="5" Padding="16" Margin="0,14,0,0">
+            <TextBlock Text="完整订阅地址按当前 Windows 用户加密保存，不写入日志或诊断导出。订阅更新失败时保留现有节点；已被规则引用的旧节点也会保留。" Style="{StaticResource Hint}" />
+          </Border>
+        </Grid>
+        <ScrollViewer x:Name="RoutingPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+          <StackPanel>
+            <TextBlock Text="分流" Style="{StaticResource Heading}" />
+            <TextBlock Text="规则按顺序匹配。IP 规则只匹配已知 IP，不为分流额外泄露域名查询。" Style="{StaticResource Hint}" Margin="0,0,0,22" />
+            <Border Style="{StaticResource Panel}" Margin="0,0,0,16">
+              <StackPanel>
+                <TextBlock Text="路径检查" Style="{StaticResource Section}" />
+                <DockPanel>
+                  <Button DockPanel.Dock="Right" Content="检查" Click="ExplainRoute" Margin="12,0,0,0" />
+                  <TextBox x:Name="ExplainInput" Text="example.com:443" />
+                </DockPanel>
+                <TextBlock x:Name="ExplainResult" Text="离线查看规则路径，无需启动引擎。" Style="{StaticResource Hint}" Margin="0,12,0,0" />
+              </StackPanel>
+            </Border>
+            <Border Style="{StaticResource Panel}" Margin="0,0,0,16">
+              <StackPanel>
+                <DockPanel>
+                  <Button Content="高级配置预演" Click="RehearseRoutes" DockPanel.Dock="Right" />
+                  <TextBlock Text="规则变更预演" Style="{StaticResource Section}" />
+                </DockPanel>
+                <DockPanel Margin="0,0,0,14"><Button Content="比较出口" Click="CompareExit" DockPanel.Dock="Right" Margin="12,0,0,0"/><ComboBox x:Name="RehearsalPolicy"/></DockPanel><TextBox x:Name="RehearsalTargets" Text="example.com:443 tcp" AcceptsReturn="True" Height="80" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto" />
+                <TextBlock Text="每行：域名或 IP:端口 tcp/udp。离线比较修改前后路径，不发送请求，不影响现有连接；节点健康按未测量处理。" Style="{StaticResource Hint}" Margin="0,10,0,16" />
+                <DataGrid x:Name="RehearsalGrid" Height="180">
+                  <DataGrid.Columns>
+                    <DataGridTextColumn Header="目标" Binding="{Binding Target}" Width="*" />
+                    <DataGridTextColumn Header="当前出口" Binding="{Binding Before}" Width="135" />
+                    <DataGridTextColumn Header="候选出口" Binding="{Binding After}" Width="135" />
+                    <DataGridTextColumn Header="结果" Binding="{Binding Status}" Width="110" />
+                  </DataGrid.Columns>
+                  <DataGrid.RowStyle>
+                    <Style TargetType="DataGridRow">
+                      <Setter Property="ToolTip" Value="{Binding Reason}" />
+                    </Style>
+                  </DataGrid.RowStyle>
+                </DataGrid>
+                <TextBlock x:Name="RehearsalSummary" Text="尚未执行预演。" Style="{StaticResource Hint}" Margin="0,12,0,0" />
+              </StackPanel>
+            </Border>
+            <DockPanel Margin="0,0,0,12">
+              <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button Content="↑" Click="MoveRuleUp" IsEnabled="{Binding SelectedItem, ElementName=RuleGrid, Converter={StaticResource HasSelection}}" Margin="0,0,6,0" />
+                <Button Content="↓" Click="MoveRuleDown" IsEnabled="{Binding SelectedItem, ElementName=RuleGrid, Converter={StaticResource HasSelection}}" Margin="0,0,6,0" />
+                <Button Content="编辑" Click="EditRule" IsEnabled="{Binding SelectedItem, ElementName=RuleGrid, Converter={StaticResource HasSelection}}" Margin="0,0,6,0"/><Button Content="启用 / 停用" Click="ToggleRule" IsEnabled="{Binding SelectedItem, ElementName=RuleGrid, Converter={StaticResource HasSelection}}" Margin="0,0,6,0"/><Button Content="移除" Click="RemoveRule" IsEnabled="{Binding SelectedItem, ElementName=RuleGrid, Converter={StaticResource HasSelection}}" Margin="0,0,6,0" />
+                <Button Content="添加规则" Click="AddRule" />
+              </StackPanel>
+              <TextBlock Text="匹配规则" FontWeight="SemiBold" VerticalAlignment="Center" />
+            </DockPanel>
+            <Border Style="{StaticResource Panel}" Padding="0" Margin="0,0,0,16">
+              <DataGrid x:Name="RuleGrid" Height="220" MouseDoubleClick="EditRule">
+                <DataGrid.Columns>
+                  <DataGridTextColumn Header="状态" Binding="{Binding State}" Width="80"/><DataGridTextColumn Header="类型" Binding="{Binding Kind}" Width="140" />
+                  <DataGridTextColumn Header="匹配值" Binding="{Binding Value}" Width="*" />
+                  <DataGridTextColumn Header="策略" Binding="{Binding Policy}" Width="150" />
+                </DataGrid.Columns>
+              </DataGrid>
+            </Border>
+            <DockPanel Margin="0,0,0,12">
+              <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button Content="编辑" Click="EditGroup" IsEnabled="{Binding SelectedItem, ElementName=GroupGrid, Converter={StaticResource HasSelection}}" Margin="0,0,6,0" />
+                <Button Content="移除" Click="RemoveGroup" IsEnabled="{Binding SelectedItem, ElementName=GroupGrid, Converter={StaticResource HasSelection}}" Margin="0,0,6,0" />
+                <Button Content="添加策略组" Click="AddGroup" />
+              </StackPanel>
+              <TextBlock Text="策略组" FontWeight="SemiBold" VerticalAlignment="Center" />
+            </DockPanel>
+            <Border Style="{StaticResource Panel}" Padding="0" Margin="0,0,0,16">
+              <DataGrid x:Name="GroupGrid" Height="170" MouseDoubleClick="EditGroup">
+                <DataGrid.Columns>
+                  <DataGridTextColumn Header="名称" Binding="{Binding Name}" Width="*" />
+                  <DataGridTextColumn Header="选择方式" Binding="{Binding Kind}" Width="160" />
+                  <DataGridTextColumn Header="成员" Binding="{Binding Members}" Width="160" />
+                </DataGrid.Columns>
+              </DataGrid>
+            </Border>
+            <Border Style="{StaticResource Panel}">
+              <StackPanel>
+                <DockPanel>
+                  <Button DockPanel.Dock="Right" Content="编辑完整配置" Click="EditProfile" />
+                  <TextBlock Text="最终策略" FontWeight="SemiBold" VerticalAlignment="Center" />
+                </DockPanel>
+                <ComboBox x:Name="FinalPolicy" Margin="0,16,0,0" SelectionChanged="FinalPolicyChanged" />
+                <TextBlock Text="自动策略组采用连续失败判断和切换冷却时间。需要直连备用时，必须显式加入 DIRECT。" Style="{StaticResource Hint}" Margin="0,12,0,0" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+        <ScrollViewer x:Name="DnsPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+          <StackPanel>
+            <DockPanel><Button Content="隐私设置" Tag="Privacy" Click="Navigate" DockPanel.Dock="Right" HorizontalAlignment="Right"/><TextBlock Text="DNS" Style="{StaticResource Heading}" /></DockPanel>
+            <TextBlock Text="使用真实 IP 解析，停止代理后无需等待虚拟 IP 缓存失效。" Style="{StaticResource Hint}" Margin="0,0,0,22" />
+            <Border Style="{StaticResource Panel}">
+              <StackPanel>
+                <TextBlock Text="选择 DNS 服务" Style="{StaticResource Section}"/>
+                <DockPanel><Button Content="应用服务" Click="ApplyDnsProvider" DockPanel.Dock="Right" Margin="12,0,0,0"/><ComboBox x:Name="DnsProvider"><sys:String>自动 · 加密解析</sys:String><sys:String>阿里 DNS · 加密解析</sys:String><sys:String>Cloudflare · 加密解析</sys:String><sys:String>AdGuard · 广告与追踪过滤</sys:String><sys:String>自定义</sys:String></ComboBox></DockPanel>
+                <TextBlock Text="自动模式优先使用阿里 DNS，连接失败时尝试 Cloudflare，均使用 HTTPS 加密。AdGuard 提供服务端广告过滤。所选服务可以看到查询；仅覆盖由 Harbor 解析的请求。" Style="{StaticResource Hint}" Margin="0,12,0,20"/>
+                <Expander x:Name="DnsAdvanced" Header="自定义服务器" Margin="0,0,0,18"><StackPanel Margin="0,14,0,0">
+                <CheckBox x:Name="DnsEncrypted" Content="使用加密 DNS（DoH / DoT）" Margin="0,0,0,14" />
+                <TextBox x:Name="DnsTlsServers" AcceptsReturn="True" Height="86" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto" />
+                <TextBlock Text="每行填写 IP:端口 和 TLS 服务器名；DoH 再加 HTTPS 路径，例如 /dns-query。始终验证证书，失败不回退明文 DNS。" Style="{StaticResource Hint}" Margin="0,10,0,22" />
+                <TextBlock Text="普通 DNS（仅在关闭加密 DNS 时使用）" Style="{StaticResource Section}" />
+                <TextBox x:Name="DnsServers" ToolTip="逗号分隔的 IP:端口，例如 1.1.1.1:53" />
+                <TextBlock Text="IP:端口，使用逗号分隔。不会修改物理网卡的 DNS。" Style="{StaticResource Hint}" Margin="0,10,0,18" />
+                <StackPanel Orientation="Horizontal">
+                  <Button Content="保存 DNS" Click="SaveDns" Style="{StaticResource Primary}" Margin="0,0,10,0" />
+                  <Button x:Name="ClearDnsButton" Content="清空缓存" Click="ClearDns" />
+                </StackPanel>
+                </StackPanel></Expander><Border Height="1" Background="{StaticResource Line}" Margin="0,6,0,24" />
+                <TextBlock x:Name="DnsStats" Text="缓存 0 条 · 命中 0 次 · 上游查询 0 次" FontSize="14" />
+                <TextBlock x:Name="DnsAddress" Text="本地解析器：127.0.0.1:5357" Style="{StaticResource Hint}" Margin="0,10,0,0" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+        <Grid x:Name="DiagnosticsPage" Visibility="Collapsed">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+          </Grid.RowDefinitions>
+          <StackPanel>
+            <TextBlock Text="诊断" Style="{StaticResource Heading}" />
+            <TextBlock Text="只记录连接元数据和运行事件，不采集请求正文。" Style="{StaticResource Hint}" Margin="0,0,0,22" />
+          </StackPanel>
+          <DockPanel Grid.Row="1" Margin="0,0,0,16">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+              <Button Content="导出诊断" Click="ExportDiagnostics" Margin="0,0,8,0" />
+              <Button Content="恢复系统网络" Click="RecoverNetwork" />
+            </StackPanel>
+            <TextBlock x:Name="DiagnosticSummary" Text="等待引擎启动。" VerticalAlignment="Center" Style="{StaticResource Hint}" />
+          </DockPanel>
+          <Border Grid.Row="2" Style="{StaticResource Panel}" Padding="0">
+            <Grid>
+              <DataGrid x:Name="EventGrid">
+                <DataGrid.Columns>
+                  <DataGridTextColumn Header="时间" Binding="{Binding Time}" Width="95" />
+                  <DataGridTextColumn Header="级别" Binding="{Binding Level}" Width="75" />
+                  <DataGridTextColumn Header="事件" Binding="{Binding Message}" Width="*" />
+                </DataGrid.Columns>
+              </DataGrid>
+              <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="20,42,20,0" IsHitTestVisible="False">
+                <StackPanel.Style>
+                  <Style TargetType="StackPanel">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding HasItems, ElementName=EventGrid}" Value="False">
+                        <Setter Property="Visibility" Value="Visible" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </StackPanel.Style>
+                <TextBlock Text="暂无运行事件" FontSize="14" Foreground="#53616C" TextAlignment="Center" />
+                <TextBlock Text="引擎启动和网络恢复记录会显示在这里。" Style="{StaticResource Hint}" TextAlignment="Center" Margin="0,10,0,0" />
+              </StackPanel>
+            </Grid>
+          </Border>
+        </Grid>
+        <ScrollViewer x:Name="SettingsPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+          <StackPanel>
+            <TextBlock Text="设置" Style="{StaticResource Heading}" />
+            <TextBlock Text="配置保存在当前 Windows 用户的加密存储中。" Style="{StaticResource Hint}" Margin="0,0,0,22" />
+            <Border Style="{StaticResource Panel}" Margin="0,0,0,16">
+              <StackPanel>
+                <TextBlock Text="与现有代理共存" Style="{StaticResource Section}" />
+                <CheckBox x:Name="ProtectExistingProxy" Content="保护现有代理与虚拟网络" IsChecked="True" Click="SavePreferences" Margin="0,0,0,14" />
+                <CheckBox x:Name="SystemProxy" Content="启动时接管 Windows 系统代理" IsChecked="False" Click="SavePreferences" Margin="0,0,0,12" />
+                <TextBlock Text="默认使用系统代理。已有代理时，连接前询问是否切换，断开后还原原设置；TUN 与现有虚拟网络冲突时阻止启动。" Style="{StaticResource Hint}" />
+                <TextBlock Text="Harbor 的上游网络" Style="{StaticResource Hint}" Margin="0,18,0,8" />
+                <ComboBox x:Name="EgressModeInput" SelectedIndex="0">
+                  <ComboBoxItem Content="物理网络 · 自动选择" />
+                  <ComboBoxItem Content="跟随系统 · 可经过现有 VPN" />
+                </ComboBox>
+                <TextBlock Text="物理网络模式让 Harbor 独立连接线路，避免被现有 TUN 再次转发。修改后点击下方「保存设置」。" Style="{StaticResource Hint}" Margin="0,10,0,0" />
+              </StackPanel>
+            </Border>
+            <Border Style="{StaticResource Panel}" Margin="0,0,0,16">
+              <StackPanel>
+                <TextBlock Text="流量接管" Style="{StaticResource Section}" />
+                <CheckBox x:Name="TunEnabled" Content="增强模式 · TUN（测试阶段）" Margin="0,0,0,10" />
+                <TextBlock Text="通过 Wintun 接管 TCP / UDP。需要管理员权限；路由和 DNS 只应用到临时适配器。" Style="{StaticResource Hint}" />
+                <Button Content="以管理员身份重新打开" Click="RestartElevated" HorizontalAlignment="Left" Margin="0,16,0,0" />
+              </StackPanel>
+            </Border>
+            <Border Style="{StaticResource Panel}" Margin="0,0,0,16">
+              <StackPanel>
+                <TextBlock Text="本地监听" Style="{StaticResource Section}" />
+                <TextBlock Text="HTTP / SOCKS5" Style="{StaticResource Hint}" />
+                <TextBox x:Name="ListenInput" Margin="0,8,0,16" />
+                <TextBlock Text="DNS" Style="{StaticResource Hint}" />
+                <TextBox x:Name="DnsListenInput" Margin="0,8,0,16" />
+                <CheckBox x:Name="MinimizeToTray" Click="SavePreferences" Content="关闭窗口时收起到系统托盘" IsChecked="False" Margin="0,0,0,16" />
+                <Button Content="保存设置" Click="SaveSettings" Style="{StaticResource Primary}" HorizontalAlignment="Left" />
+              </StackPanel>
+            </Border>
+            <Border Style="{StaticResource Panel}">
+              <StackPanel>
+                <TextBlock Text="配置文件" Style="{StaticResource Section}" />
+                <StackPanel Orientation="Horizontal">
+                  <Button Content="编辑完整配置" Click="EditProfile" Margin="0,0,10,0" />
+                  <Button Content="导出配置" Click="ExportProfile" />
+                </StackPanel>
+                <TextBlock Text="导出配置包含节点密码，保存时请自行选择安全位置。诊断导出不包含密码。" Style="{StaticResource Hint}" Margin="0,12,0,0" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+        <ScrollViewer x:Name="PrivacyPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+          <StackPanel>
+            <DockPanel><Button Content="DNS 服务" Tag="Dns" Click="Navigate" DockPanel.Dock="Right" HorizontalAlignment="Right"/><TextBlock Text="隐私保护" Style="{StaticResource Heading}" /></DockPanel>
+            <TextBlock Text="限制 Harbor 的出口与记录，按本地规则阻止跟踪域名。" Style="{StaticResource Hint}" Margin="0,0,0,22" />
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.4*" />
+                <ColumnDefinition Width="18" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <Border Style="{StaticResource Panel}" Margin="0,0,0,18" VerticalAlignment="Top">
+                <StackPanel>
+                  <DockPanel>
+                    <Button Content="导入拦截规则" DockPanel.Dock="Right" Click="ImportBlockRules" />
+                    <TextBlock Text="本地反追踪规则" Style="{StaticResource Section}" />
+                  </DockPanel>
+                  <TextBlock x:Name="BlockRuleCount" Text="0 个拦截域名 · 0 个例外" Style="{StaticResource Hint}" Margin="0,0,0,16" />
+                  <Grid>
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition />
+                      <ColumnDefinition Width="18" />
+                      <ColumnDefinition />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                      <TextBlock Text="拦截域名" FontSize="12" Margin="0,0,0,8" />
+                      <TextBox x:Name="BlockedDomains" AcceptsReturn="True" Height="238" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                      <TextBlock Text="允许的例外" FontSize="12" Margin="0,0,0,8" />
+                      <TextBox x:Name="AllowedDomains" AcceptsReturn="True" Height="238" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto" />
+                    </StackPanel>
+                  </Grid>
+                  <TextBlock Text="每行一个域名，包含其子域名；例外优先。导入支持 hosts、域名列表与 Adblock 域名规则，无法表达的规则会明确提示。" Style="{StaticResource Hint}" Margin="0,13,0,0" />
+                </StackPanel>
+              </Border>
+              <StackPanel Grid.Column="2">
+                <Border Style="{StaticResource Panel}" Margin="0,0,0,16">
+                  <StackPanel>
+                    <TextBlock Text="传输限制" Style="{StaticResource Section}" />
+                    <CheckBox x:Name="BlockDirect" Margin="0,0,0,13">
+                      <TextBlock Text="禁止非回环目标直连" TextWrapping="Wrap" FontSize="12" />
+                    </CheckBox>
+                    <CheckBox x:Name="RequireEncryption" Margin="0,0,0,13">
+                      <TextBlock Text="仅允许加密的代理传输" TextWrapping="Wrap" FontSize="12" />
+                    </CheckBox>
+                    <TextBlock Text="限制作用于 Harbor 转发的连接。普通 SOCKS5 的 UDP 传输不加密；被禁止的出口会拒绝连接。" Style="{StaticResource Hint}" />
+                  </StackPanel>
+                </Border>
+                <Border Style="{StaticResource Panel}" Margin="0,0,0,16">
+                  <StackPanel>
+                    <TextBlock Text="本地连接记录" Style="{StaticResource Section}" />
+                    <CheckBox x:Name="HideMetadata" Margin="0,0,0,16">
+                      <TextBlock Text="隐藏连接目标、来源和出口名称，同时停用事件明细" TextWrapping="Wrap" FontSize="12" />
+                    </CheckBox>
+                    <TextBlock Text="结束后的记录保留秒数（0 表示不保留）" FontSize="12" Margin="0,0,0,8" />
+                    <TextBox x:Name="HistorySeconds" Text="300" Width="140" HorizontalAlignment="Left" />
+                    <TextBlock Text="记录只保存在内存。此设置不清除浏览器、系统或其他代理自己的记录。" Style="{StaticResource Hint}" Margin="0,12,0,0" />
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+            </Grid>
+            <StackPanel Orientation="Horizontal">
+              <Button Content="保存隐私设置" Style="{StaticResource Primary}" Click="SavePrivacy" Margin="0,0,10,0" />
+              <Button Content="清空已结束记录" Click="ClearHistory" />
+            </StackPanel>
+            <TextBlock Text="更改拦截域名或传输限制前需先停止 Harbor，避免已有连接保留旧规则。加密 DNS 在 DNS 页面设置。" Style="{StaticResource Hint}" Margin="0,14,0,16" />
+            <Border Background="#EAF0F5" CornerRadius="6" Padding="17">
+              <TextBlock Text="保护边界：网络代理不消除浏览器指纹、账号关联或端点恶意软件。" Style="{StaticResource Hint}" />
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+        <Grid x:Name="NetworkPage" Visibility="Collapsed">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+          </Grid.RowDefinitions>
+          <StackPanel>
+            <DockPanel><Button Content="运行诊断" Tag="Diagnostics" Click="Navigate" DockPanel.Dock="Right" HorizontalAlignment="Right"/><TextBlock Text="网络管理" Style="{StaticResource Heading}" /></DockPanel>
+            <TextBlock Text="只读查看 Windows 网络与共存状态。" Style="{StaticResource Hint}" Margin="0,0,0,22" />
+          </StackPanel>
+          <Border Grid.Row="1" Style="{StaticResource Panel}" Margin="0,0,0,18">
+            <DockPanel>
+              <Button Content="刷新状态" DockPanel.Dock="Right" Click="RefreshNetwork" />
+              <StackPanel>
+                <TextBlock x:Name="NetworkSummary" Text="等待读取网络状态。" FontWeight="SemiBold" />
+                <TextBlock x:Name="NetworkProtection" Text="此页面不修改网卡、DNS 或路由。" Style="{StaticResource Hint}" Margin="0,9,20,0" />
+              </StackPanel>
+            </DockPanel>
+          </Border>
+          <Border Grid.Row="2" Style="{StaticResource Panel}" Padding="0">
+            <DataGrid x:Name="AdapterGrid" RowHeight="65">
+              <DataGrid.Columns>
+                <DataGridTextColumn Header="网络接口" Binding="{Binding Name}" Width="150" />
+                <DataGridTextColumn Header="状态" Binding="{Binding State}" Width="82" />
+                <DataGridTextColumn Header="状态" Binding="{Binding State}" Width="80"/><DataGridTextColumn Header="类型" Binding="{Binding Kind}" Width="110" />
+                <DataGridTextColumn Header="链路速率" Binding="{Binding Speed}" Width="105" />
+                <DataGridTextColumn Header="本地地址" Binding="{Binding Addresses}" Width="*" />
+                <DataGridTextColumn Header="DNS" Binding="{Binding Dns}" Width="180" />
+              </DataGrid.Columns>
+            </DataGrid>
+          </Border>
+        </Grid>
+      </Grid>
+      <Border Grid.Row="3" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="30,0">
+        <DockPanel>
+          <TextBlock x:Name="FooterState" Text="本地工作空间" FontSize="10" Foreground="#8A9590" VerticalAlignment="Center" />
+          <TextBlock x:Name="FooterTraffic" DockPanel.Dock="Right" Text="无网络接管" FontSize="10" Foreground="#8A9590" VerticalAlignment="Center" HorizontalAlignment="Right" />
+        </DockPanel>
+      </Border>
+    </Grid>
+  </Grid>
+</Window>

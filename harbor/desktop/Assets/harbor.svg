@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>Harbor — sheltered water between two piers</title>
+  <rect x="8" y="8" width="240" height="240" rx="58" fill="#264E43"/>
+  <path d="M76 66 L102 66 L102 118 C122 111 136 139 154 128 L154 66 L180 66 L180 190 L154 190 L154 154 C134 165 119 137 102 144 L102 190 L76 190 Z" fill="#F4F3E6"/>
+  <circle cx="199" cy="56" r="8" fill="#BDD7AA"/>
+</svg>

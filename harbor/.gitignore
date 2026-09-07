@@ -1,0 +1,12 @@
+/target/
+/desktop/bin/
+/desktop/obj/
+/tests/*/bin/
+/tests/*/obj/
+/dist/
+/.cache/
+/vendor/wintun/bin/
+*.user
+*.log
+**/__pycache__/
+*.pyc

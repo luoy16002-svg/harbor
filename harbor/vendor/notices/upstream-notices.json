@@ -1,0 +1,50 @@
+{
+  "YamlDotNet-LICENSE.txt": {
+    "source": "https://raw.githubusercontent.com/aaubry/YamlDotNet/v18.1.0/LICENSE.txt",
+    "sha256": "daea8b7f1b2bab48ea12ad50b0ce91634669d99d7dd0cb64aed8dffeeef69ed3"
+  },
+  "dotnet-runtime-LICENSE.txt": {
+    "source": "https://raw.githubusercontent.com/dotnet/runtime/v9.0.19/LICENSE.TXT",
+    "sha256": "cfc21f5e8bd655ae997eec916138b707b1d290b83272c02a95c9f821b8c87310"
+  },
+  "dotnet-runtime-THIRD-PARTY-NOTICES.txt": {
+    "source": "https://raw.githubusercontent.com/dotnet/runtime/v9.0.19/THIRD-PARTY-NOTICES.TXT",
+    "sha256": "fa3e9d0a2c52476f04fe798d7dc4f6e7edb7b68a3d2f4d5f59a39bce957eedc8"
+  },
+  "dotnet-wpf-LICENSE.txt": {
+    "source": "https://raw.githubusercontent.com/dotnet/wpf/v9.0.19/LICENSE.TXT",
+    "sha256": "ae48df11a335dc1a615f4f938b69cba73bcf4485c4f97af49b38efb0f216353b"
+  },
+  "dotnet-wpf-THIRD-PARTY-NOTICES.txt": {
+    "source": "https://raw.githubusercontent.com/dotnet/wpf/v9.0.19/THIRD-PARTY-NOTICES.TXT",
+    "sha256": "d23dba2fee20c6b59d8f7088ee9ed372459c952a319b7ca90f3eec370cc76eb9"
+  },
+  "dotnet-winforms-LICENSE.txt": {
+    "source": "https://raw.githubusercontent.com/dotnet/winforms/v9.0.19/LICENSE.TXT",
+    "sha256": "ae48df11a335dc1a615f4f938b69cba73bcf4485c4f97af49b38efb0f216353b"
+  },
+  "dotnet-winforms-THIRD-PARTY-NOTICES.txt": {
+    "source": "https://raw.githubusercontent.com/dotnet/winforms/v9.0.19/THIRD-PARTY-NOTICES.TXT",
+    "sha256": "5a412b38efae0b162dc0893b319023f4cd14a8985a0f9f9ae01ac052b37a36eb"
+  },
+  "asn1-rs-LICENSE-MIT": {
+    "source": "https://raw.githubusercontent.com/rusticata/asn1-rs/a20e5f7319c896737ad0f2557037817b91ad854f/LICENSE-MIT",
+    "sha256": "a5c61b93b6ee1d104af9920cf020ff3c7efe818e31fe562c72261847a728f513"
+  },
+  "asn1-rs-LICENSE-APACHE": {
+    "source": "https://raw.githubusercontent.com/rusticata/asn1-rs/a20e5f7319c896737ad0f2557037817b91ad854f/LICENSE-APACHE",
+    "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+  },
+  "c2rust-LICENSE": {
+    "source": "https://raw.githubusercontent.com/immunant/c2rust/308da97f8ea6f76fc63d39e0fa84f0b28ee17622/LICENSE",
+    "sha256": "2bd73a6df34e41c531e4088a97e90a489b163926fb214ac90e9c172d124bc2f8"
+  },
+  "defmt-LICENSE-MIT": {
+    "source": "https://raw.githubusercontent.com/knurling-rs/defmt/4a8cdb44891ed57b8ff5a023b6bec7137c48708f/LICENSE-MIT",
+    "sha256": "2710a622a896bba67356913d4d0492cab5465f61b2ecce6d880aeb483834fb50"
+  },
+  "defmt-LICENSE-APACHE": {
+    "source": "https://raw.githubusercontent.com/knurling-rs/defmt/4a8cdb44891ed57b8ff5a023b6bec7137c48708f/LICENSE-APACHE",
+    "sha256": "8173d5c29b4f956d532781d2b86e4e30f83e6b7878dce18c919451d6ba707c90"
+  }
+}
