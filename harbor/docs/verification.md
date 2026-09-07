@@ -1,15 +1,15 @@
 # Verification
 
-These results apply to the 0.7.0 preview checked on 2026-09-07. They do not establish production readiness or carry over automatically to later builds.
+These results apply to the 0.8.0 preview checked on 2026-09-07. They do not establish production readiness or carry over automatically to later builds.
 
 | Check | Result | Scope |
 | --- | --- | --- |
 | Rust tests | 36 passed | Protocols, routing modes, packets, privacy precedence, encrypted DNS, and adapter selection |
-| Desktop checks | 47 passed | Imports, subscription headers and diffs, DPAPI, recovery state, mode defaults, saved history, bounded batch scheduling, and cancellation |
+| Desktop checks | 59 passed | Imports, subscription headers and diffs, DPAPI, recovery, mode defaults, encrypted configuration history, restoration, bounded batch scheduling, and cancellation |
 | Independent interop | 49 passed | Xray v26.3.27, TCP/UDP paths, 2 MiB payloads, delayed replies, source-port reuse, and concurrent connections |
 | Control interface | 13 passed | Isolation, preflight, stop, atomic configuration changes, targeted cancellation, and routing-mode changes over real TCP/UDP sessions |
-| WPF workflows | 43 passed | Import, search, tray controls, HTTPS batches, subscription updates, both mode selectors, stale-preview clearing, delayed status replies after reconnect, and failed-save rollback |
-| Layout | Passed | Ten pages, four dialogs, 1280/980-pixel main windows, and a 640-pixel subscription preview |
+| WPF workflows | 54 passed | Import, search, tray controls, HTTPS batches, subscription updates, mode selectors, configuration restoration, stale reviews, reconnect polling, and failed-save rollback |
+| Layout | Passed | Ten pages, five dialogs, 1280/980-pixel main windows, a 640-pixel subscription preview, and a 660-pixel history preview |
 | Build | Passed | Strict Clippy and desktop compilation without warnings |
 
 Dependency advisory queries returned no findings for the locked dependencies at the time of the check. This is not a security audit.
@@ -21,6 +21,8 @@ Batch checks used two loopback HTTP CONNECT servers that held their replies unti
 Subscription checks used synthetic provider headers and in-memory HTTP responses. They exercised cancellation while waiting for headers and body bytes, old workspace loading, metadata updates on unchanged content, real preview buttons, empty-feed rejection, and late responses after a source change. A read-only workspace fixture forced persistence to fail after runtime configuration; the original disk bytes, desktop profile, and runtime proxy names were restored. Subscription screenshots contain fixture data, not the user's provider statistics.
 
 Routing checks used isolated listeners and real loopback TCP and UDP echoes. Switching modes changed newly opened flows while established flows continued transferring data with their original generations. Invalid mode values left the running generation unchanged. Desktop checks exercised both mode selectors, direct startup without proxies, unused-proxy preflight, unchanged disk bytes after offline comparison, stale-result clearing after configuration/input changes, overlapping UI actions, and a forced save failure restoring disk, UI, and runtime mode. A delayed stopped reply was injected across an actual stop/start and could not stop or repaint the new session. Privacy blocks stayed effective in all three modes. Mode screenshots show a fixture proxy and offline path results.
+
+Configuration-history checks used isolated DPAPI workspaces. They verified automatic predecessors, ten-version retention, metadata-only updates, write-size bounds, read-only history and workspace failures, corrupt envelopes, legacy storage, private-field previews, and clearing without changing preferences or recovery journals. Real WPF restore and cancel buttons exercised disconnected-only restoration, changed-current and changed-selected review rejection, invalid-policy validation, pending-download cancellation, and restoration of the pre-restore version. Restored feeds cleared validators and usage. Screenshots show synthetic local fixtures; no subscription service was contacted by these checks.
 
 A limited external forwarding check completed HTTPS requests through the release engine's SOCKS5 and HTTP CONNECT listeners. This does not establish compatibility with every proxy, destination, or network.
 

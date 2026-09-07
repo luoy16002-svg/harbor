@@ -24,15 +24,22 @@ internal static class Storage
         var profile = Read<JsonObject>(ProfilePath);
         return profile == null ? null : new WorkspaceState(profile, Read<List<SubscriptionEntry>>(Path.Combine(Root, "subscriptions.dat")) ?? []);
     }
-    public static void SaveWorkspace(JsonObject profile, List<SubscriptionEntry> subscriptions) => Write(WorkspacePath, new WorkspaceState(profile, subscriptions));
+    public static void SaveWorkspace(JsonObject profile, List<SubscriptionEntry> subscriptions)
+    {
+        var next = new WorkspaceState(profile, subscriptions);
+        WorkspaceHistory.RecordBeforeSave(LoadWorkspace(), next);
+        Write(WorkspacePath, next);
+    }
 
-    public static void Write<T>(string path, T value)
+    public static void Write<T>(string path, T value, int maximumBytes = 4 * 1024 * 1024)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         byte[] plain = JsonSerializer.SerializeToUtf8Bytes(value, Json);
         try
         {
+            if (plain.Length > maximumBytes) throw new InvalidDataException("配置文件超过大小限制。");
             byte[] encrypted = Protect(plain, false);
+            if (encrypted.Length > maximumBytes) throw new InvalidDataException("加密配置超过大小限制。");
             var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
             try
             {
@@ -45,11 +52,11 @@ internal static class Storage
         finally { System.Security.Cryptography.CryptographicOperations.ZeroMemory(plain); }
     }
 
-    public static T? Read<T>(string path)
+    public static T? Read<T>(string path, int maximumBytes = 4 * 1024 * 1024)
     {
         if (!File.Exists(path)) return default;
         var info = new FileInfo(path);
-        if (info.Length > 4 * 1024 * 1024) throw new InvalidDataException("配置文件超过大小限制。");
+        if (info.Length > maximumBytes) throw new InvalidDataException("配置文件超过大小限制。");
         var plain = Protect(File.ReadAllBytes(path), true);
         try { return JsonSerializer.Deserialize<T>(plain, Json); }
         finally { System.Security.Cryptography.CryptographicOperations.ZeroMemory(plain); }

@@ -26,6 +26,12 @@ Subscription downloads have a separate cancellation token and leave connection c
 
 Provider usage is optional metadata in the encrypted subscription record. Header parsing is bounded and rejects ambiguous or invalid counters; missing totals or expiry remain unknown. HTTP 304 responses preserve previously supplied usage when no new header is present, including its original observation time. Identical bodies can refresh usage and validators without configuring the engine.
 
+Workspace writes record their predecessor in `workspace-history.dat`, a separate CurrentUser DPAPI file with a versioned envelope and at most ten snapshots. The complete history file is atomically replaced before the workspace. A history write failure aborts the workspace change; the desktop rolls back an already configured runtime. A workspace replacement failure can leave a duplicate of the current configuration in history, which is reused on retry. No cleanup operation after workspace commit can make a successful save appear to fail. Encrypted workspace and history files are bounded to 4 MiB and 64 MiB respectively.
+
+History equality includes the profile and subscription identity, address, name, and owned proxies. It ignores fetch timestamps, validators, body digests, unsupported counts, and provider usage, so unchanged-feed refreshes still persist without adding snapshots. Desktop preferences, proxy-recovery journals, connection telemetry, and HTTPS check records are outside configuration history.
+
+The history dialog captures the current and selected configuration for review. Restoring acquires the desktop action lock, requires a stopped engine, reloads the selected revision, and rejects a changed current or selected configuration. It cancels pending subscription and verification work, validates the candidate through the engine, then uses the normal workspace save path. The predecessor is retained for undo. Subscription ETag, Last-Modified, digest, and usage fields are cleared so historical proxies cannot inherit a stale conditional-fetch result. No feed is downloaded or connection started by restoration. Clearing history deletes only its single known file and works even if it cannot be decrypted.
+
 ## Reliability contracts
 
 - Bind and verify listeners before enabling a system proxy.

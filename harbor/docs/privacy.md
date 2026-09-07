@@ -4,6 +4,8 @@
 
 Workspaces, proxy credentials, subscription URLs, and recovery journals use Windows CurrentUser DPAPI. Saved HTTPS check results are also encrypted. Programs running as the same user, and administrators, may still access this data.
 
+Configuration history retains up to ten earlier workspaces in a separate encrypted local file. These versions include earlier proxy credentials and subscription addresses until they age out or history is explicitly cleared from settings. The change preview shows field names instead of credential values and URL tokens. Clearing history does not delete the active configuration, saved HTTPS results, desktop preferences, or network-recovery journal. History is not a portable backup and is not synchronized or uploaded.
+
 Provider-reported subscription usage and expiry are stored in the same encrypted workspace, with the time received. These statistics come from the subscription service and are independent of Harbor's own byte counts. The optional header convention is described in [Clash Party's response-header documentation](https://clashparty.org/docs/guide/urlscheme). Invalid or absent statistics do not become a zero-use or unlimited-plan claim.
 
 Connection records stay in memory. Completed records are kept for 300 seconds by default, configurable from 0 to 86,400 seconds. Hiding details clears stored destinations, sources, proxies, rule reasons, and error text. It does not remove records held by Windows, browsers, or other apps.

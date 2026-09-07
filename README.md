@@ -8,7 +8,9 @@ Subscriptions show provider usage and expiry when available. Updates include a c
 
 Switch between rule routing, one default outbound, and direct routing. Preview path changes offline before selecting a mode; established connections keep their original route.
 
-**Status:** 0.7.0 preview. The desktop UI is currently in Chinese. TUN support is experimental; live system-wide capture and recovery have not been validated for this release.
+Configuration changes retain up to ten encrypted earlier versions. Review differences and restore a version from settings while disconnected; the configuration before restoration is kept for undo.
+
+**Status:** 0.8.0 preview. The desktop UI is currently in Chinese. TUN support is experimental; live system-wide capture and recovery have not been validated for this release.
 
 ## Build
 

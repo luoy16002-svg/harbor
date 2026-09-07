@@ -1,6 +1,6 @@
 # Features
 
-Implemented features and the checks completed for 0.7.0 are listed separately from unverified behavior.
+Implemented features and the checks completed for 0.8.0 are listed separately from unverified behavior.
 
 | Feature | Implementation | Verification |
 | --- | --- | --- |
@@ -8,6 +8,7 @@ Implemented features and the checks completed for 0.7.0 are listed separately fr
 | Proxy search and saved checks | Name, protocol, and server search; encrypted results; expiry after configuration changes or 24 hours; numeric HTTPS sorting | Persistence, filtering, clearing, per-proxy invalidation, timestamps, and expired-result ordering |
 | Imports and subscriptions | Cancellable HTTPS updates, a preview of added/changed/removed/retained proxies, ownership tracking, and atomic saves | Parser, body/header cancellation, real preview acceptance/cancellation, empty-feed rejection, stale-response rejection, and failed-save rollback |
 | Subscription statistics | Optional provider upload/download/total/expiry data, timestamps, and an explicit unavailable state | Header bounds and parsing, old-workspace compatibility, DPAPI persistence, 304 replies, and identical-body metadata refresh |
+| Configuration history | Ten encrypted predecessors, change previews, stopped-only restoration, undo through history, and explicit clearing | Atomic persistence failures, retention, corruption, stale reviews, real restore/cancel buttons, download cancellation, and HTTP validator reset |
 | Proxy selection and rules | Live configuration updates, ordered groups, rule editing, and offline route comparisons | Policy tests, invalid-update rollback, and established-stream preservation |
 | Routing modes | Rules, a single default outbound, or direct; saved selections and offline mode comparison | Legacy defaults, group selection, privacy precedence, real TCP/UDP transitions, and failed-save rollback in the desktop |
 | Local proxy | HTTP and SOCKS5 listeners, TCP and persistent UDP sessions | Independent interop and loopback traffic |

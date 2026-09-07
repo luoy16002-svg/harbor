@@ -58,6 +58,7 @@ public partial class MainWindow : Window
     private void Navigate(object sender, RoutedEventArgs e)
     {
         string name = (sender as Button)?.Tag?.ToString() ?? "Overview";
+        if (name == "Settings") RefreshWorkspaceHistorySummary();
         foreach (string key in new[] { "Overview", "Connections", "Nodes", "Subscriptions", "Routing", "Dns", "Diagnostics", "Privacy", "Network", "Settings" })
         {
             ((UIElement)FindName(key + "Page")).Visibility = key == name ? Visibility.Visible : Visibility.Collapsed;
@@ -226,6 +227,7 @@ public partial class MainWindow : Window
         if (running) await client.CallAsync("configure", new JsonObject { { "config", candidate.DeepClone() } });
         try { Storage.SaveWorkspace(candidate, subscriptions ?? Subscriptions.Read()); } catch { if (running) await client.CallAsync("configure", new JsonObject { { "config", profile.DeepClone() } }); throw; }
         profile = candidate; SyncProfile();
+        if (SettingsPage.Visibility == Visibility.Visible) RefreshWorkspaceHistorySummary();
     }
     private void FilterFlows(object sender, TextChangedEventArgs e) { if (FlowGrid != null) ApplyFlowFilter(); }
     private void ApplyFlowFilter() { string text = FlowSearch.Text; FlowGrid.ItemsSource = flows.Where(f => string.IsNullOrWhiteSpace(text) || $"{f.Destination} {f.Outbound} {f.Policy}".Contains(text, StringComparison.OrdinalIgnoreCase)).ToList(); }

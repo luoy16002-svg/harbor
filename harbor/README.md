@@ -1,6 +1,6 @@
 # Harbor
 
-A Windows proxy client with a Rust forwarding engine and a WPF desktop. This is the **0.7.0 preview**.
+A Windows proxy client with a Rust forwarding engine and a WPF desktop. This is the **0.8.0 preview**.
 
 ## Use
 
@@ -28,6 +28,7 @@ Upstream connections use a physical network adapter by default to avoid routing 
 - Encrypted, saved HTTPS check results with timestamps and configuration-based expiry.
 - Batch HTTPS checks for the filtered list, progress, cancellation, and numeric elapsed-time sorting.
 - Subscription usage and expiry, cancellable downloads, and a preview of changed proxies before applying updates.
+- Automatic encrypted configuration history with differences, reviewed restoration, and the ten most recent versions.
 
 On the proxies page, search or filter the list and choose the batch check action. Harbor checks the list captured at that moment, with at most two requests in flight. Cancellation closes those verification connections while preserving completed results and active proxy traffic. Starting or stopping the proxy cancels an active batch first.
 
@@ -36,6 +37,10 @@ Sort by HTTPS elapsed time to put recent successful checks first, then select a 
 In subscription management, check for updates to review added, changed, removed, and retained proxies. Proxies still referenced by an outbound, rule, or group remain available. Cancelling a download or declining its preview keeps the existing workspace. Connection controls remain available while downloading; disconnecting cancels the pending download first.
 
 Usage and expiry come from the provider's optional `Subscription-Userinfo` header and include the time received. They are separate from Harbor's local traffic counters. Missing or malformed statistics are shown as unavailable; a zero total does not imply an unlimited plan. Updates are user initiated.
+
+Open settings and choose configuration history to review earlier versions. Before a configuration change, Harbor saves the previous workspace, including proxies, subscription addresses and ownership, routing, DNS, and privacy settings. It keeps at most ten encrypted versions under the current Windows user. Usage and download metadata updates do not consume history slots.
+
+Disconnect before restoring. The preview lists changes without displaying passwords or subscription URL tokens. Harbor checks that the reviewed versions still match and validates the selected configuration before replacing the workspace. Restoration keeps the current configuration in history so it can be restored again. It leaves Harbor disconnected and preserves desktop system-proxy preferences. Restored subscriptions clear usage and HTTP cache markers; refresh them manually to fetch current content and provider statistics. Clearing history removes the saved versions while retaining the current workspace.
 
 Choose a routing mode on the overview or routing page. Modes affect traffic entering Harbor and are separate from the system proxy, application proxy, and TUN connection methods.
 
