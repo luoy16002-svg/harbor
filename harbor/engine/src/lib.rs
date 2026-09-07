@@ -1,7 +1,9 @@
 pub mod bridge;
 pub mod config;
 pub mod datagram;
+pub mod dialer;
 pub mod dns;
+mod dns_flight;
 mod dns_https;
 pub mod engine;
 pub mod inbound;

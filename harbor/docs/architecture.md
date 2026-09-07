@@ -34,6 +34,8 @@ The history dialog captures the current and selected configuration for review. R
 
 ## Reliability contracts
 
+The TCP transport delegates to a shared dialer which polls A/AAAA resolution alongside caller-owned TCP attempts. It interleaves available families, reserves capacity for a late second family, and drops losing attempts before returning the connected socket. DNS work sharing also belongs to callers: cancelling an owner lets a surviving follower restart the query, and cancelling every caller leaves no detached network task. Configuration epochs isolate DNS caches and query groups. [Connection quality](connection-quality.md) documents scheduling, limits, counters, and the fault fixtures.
+
 - Bind and verify listeners before enabling a system proxy.
 - Write and flush a recovery journal before mutating Windows settings. Establish guardian readiness first.
 - Restore settings before listener shutdown. Keep the journal until restoration is verified or a conflicting external change is explicitly recorded.

@@ -1,6 +1,6 @@
 # Features
 
-Implemented features and the checks completed for 0.8.0 are listed separately from unverified behavior.
+Implemented features and the checks completed for 0.9.0 are listed separately from unverified behavior.
 
 | Feature | Implementation | Verification |
 | --- | --- | --- |
@@ -16,7 +16,8 @@ Implemented features and the checks completed for 0.8.0 are listed separately fr
 | Upstream routing | Physical adapter selection or system routing; updates for new connections after network changes | Adapter selection checks and limited HTTPS forwarding with an existing TUN active |
 | TUN | Wintun adapter, smoltcp TCP/IP stack, and route cleanup | In-memory packets and isolation checks; live capture and recovery remain unverified |
 | HTTPS verification | One proxy or the current filtered list; two concurrent requests; progress and cancellation; proxy handshake, target certificate validation, and an HTTPS HEAD request | Success/failure fixtures, bounded scheduling, queued-work cancellation, configuration matching, and preserved forwarding during cancellation |
-| DNS | DoH / DoT, verified TLS, pooling, cache, and startup preflight | HTTP limits, certificate rejection, DNS error handling, and partial address-family success |
+| DNS | DoH / DoT, verified TLS, pooling, cache, shared concurrent queries, and first-answer startup preflight | HTTP limits, certificate rejection, flag isolation, leader/follower cancellation, generation changes, and 64-way sharing over UDP and verified DoT |
+| TCP setup | Streaming address resolution, bounded dual-stack attempts, current-answer path hints, and aggregate diagnostics | Virtual-time failure schedules, loser cleanup, hint invalidation, metadata hiding, and five local fault scenarios compared with the previous engine |
 | Local domain filtering | Domain, hosts, and basic Adblock domain syntax; allow rules and CNAME checks | Domain boundaries, exceptions, and alias-chain tests |
 | Connections and privacy | Real byte counts, filters, close-flow action, metadata hiding, retention, and summary export | Loopback transfers, blocked flows, retention, and field checks |
 | Desktop layout | Ten pages, import/edit dialogs, narrow layouts, and smooth scrolling | WPF rendering at 1280 and 980 pixels wide; guided workflows |

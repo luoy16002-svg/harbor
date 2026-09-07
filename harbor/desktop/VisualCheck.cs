@@ -103,6 +103,14 @@ internal static class VisualCheck
             window.UpdateLayout(); await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle); Render(window, Path.Combine(directory, "overview-live.png"));
             ((Button)window.FindName("NavConnections")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             window.UpdateLayout(); Render(window, Path.Combine(directory, "connections-live.png"));
+            foreach (string page in new[] { "Diagnostics", "Dns" })
+            {
+                ((Button)window.FindName("Nav" + page)).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                window.Width = 1280; window.Height = 840; window.UpdateLayout();
+                Render(window, Path.Combine(directory, page.ToLowerInvariant() + "-live-1280.png"));
+                window.Width = 980; window.Height = 700; window.UpdateLayout();
+                Render(window, Path.Combine(directory, page.ToLowerInvariant() + "-live-980.png"));
+            }
             ((Button)window.FindName("NavOverview")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             window.Width = 980; window.Height = 700; window.UpdateLayout(); await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle); window.UpdateLayout(); Render(window, Path.Combine(directory, "overview-live-980.png"));
             window.Width = 1280; window.Height = 840;

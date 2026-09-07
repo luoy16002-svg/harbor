@@ -39,7 +39,7 @@ pub async fn preflight(config: Config) -> Result<Value> {
     resolver.set_privacy(&config.privacy);
     let addresses = tokio::time::timeout(
         Duration::from_secs(15),
-        resolver.lookup(&node.server, node.port),
+        resolver.lookup_first(&node.server, node.port),
     )
     .await
     .context("Proxy server DNS preflight timed out")??;

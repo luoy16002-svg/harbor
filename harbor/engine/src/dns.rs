@@ -122,6 +122,10 @@ pub struct Resolver {
     generation: AtomicU64,
     filter: RwLock<crate::privacy::DomainFilter>,
     blocked: AtomicU64,
+    flights: crate::dns_flight::Flights,
+    coalesced: AtomicU64,
+    upstream_queries: AtomicU64,
+    pub(crate) dialer: crate::dialer::Dialer,
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -133,6 +137,9 @@ pub struct DnsStats {
     pub servers: Vec<SocketAddr>,
     pub encrypted: bool,
     pub blocked: u64,
+    pub coalesced: u64,
+    pub upstream_queries: u64,
+    pub in_flight: usize,
 }
 impl Resolver {
     pub fn new(servers: Vec<SocketAddr>, egress: Arc<Egress>) -> Self {
@@ -147,6 +154,10 @@ impl Resolver {
             generation: AtomicU64::new(0),
             filter: RwLock::new(Default::default()),
             blocked: AtomicU64::new(0),
+            flights: Default::default(),
+            coalesced: AtomicU64::new(0),
+            upstream_queries: AtomicU64::new(0),
+            dialer: Default::default(),
         }
     }
     pub fn configure(&self, servers: Vec<SocketAddr>, tls: Vec<DnsTlsServer>) {
@@ -160,9 +171,14 @@ impl Resolver {
     pub fn clear(&self) {
         self.generation.fetch_add(1, Ordering::SeqCst);
         self.cache.lock().unwrap().clear();
+        self.dialer.clear();
+    }
+    pub fn dial_stats(&self) -> crate::dialer::DialStats {
+        self.dialer.stats()
     }
     pub fn set_privacy(&self, settings: &crate::privacy::Privacy) {
         *self.filter.write().unwrap() = crate::privacy::DomainFilter::new(settings);
+        self.dialer.set_metadata_hidden(settings.hide_metadata);
         self.clear();
     }
     pub fn stats(&self) -> DnsStats {
@@ -174,6 +190,9 @@ impl Resolver {
             servers: self.servers.read().unwrap().clone(),
             encrypted: !self.encrypted.read().unwrap().is_empty(),
             blocked: self.blocked.load(Ordering::Relaxed),
+            coalesced: self.coalesced.load(Ordering::Relaxed),
+            upstream_queries: self.upstream_queries.load(Ordering::Relaxed),
+            in_flight: self.flights.len(),
         }
     }
     fn blocked_answer(&self, request: &Message) -> Message {
@@ -281,7 +300,159 @@ impl Resolver {
         );
         Ok(addresses)
     }
+    pub(crate) async fn lookup_family(
+        &self,
+        host: &str,
+        port: u16,
+        ipv6: bool,
+    ) -> Result<Vec<SocketAddr>> {
+        if let Ok(ip) = host.parse::<IpAddr>() {
+            return Ok(if ip.is_ipv6() == ipv6 {
+                vec![SocketAddr::new(ip, port)]
+            } else {
+                vec![]
+            });
+        }
+        if host.eq_ignore_ascii_case("localhost") {
+            return Ok(vec![SocketAddr::new(
+                if ipv6 {
+                    IpAddr::V6(std::net::Ipv6Addr::LOCALHOST)
+                } else {
+                    IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)
+                },
+                port,
+            )]);
+        }
+        ensure!(
+            !self.filter.read().unwrap().blocked(host),
+            "DNS lookup blocked by local domain rule: {host}"
+        );
+        let name = Name::from_ascii(host).context("Invalid DNS name")?;
+        let mut request = Message::query();
+        request.metadata.id = rand::random();
+        request.metadata.recursion_desired = true;
+        request.add_query(Query::query(
+            name.clone(),
+            if ipv6 {
+                RecordType::AAAA
+            } else {
+                RecordType::A
+            },
+        ));
+        let response = self.query(&request).await?;
+        ensure!(
+            response.response_code == ResponseCode::NoError,
+            "DNS {:?}",
+            response.response_code
+        );
+        let mut name = name;
+        name.set_fqdn(true);
+        let mut reachable = HashSet::new();
+        reachable.insert(name.clone());
+        for _ in 0..32 {
+            let Some(target) = response.answers.iter().find_map(|record| {
+                if record.name == name
+                    && record.dns_class == request.queries.as_slice()[0].query_class()
+                    && let RData::CNAME(target) = &record.data
+                {
+                    Some(target.0.clone())
+                } else {
+                    None
+                }
+            }) else {
+                break;
+            };
+            if !reachable.insert(target.clone()) {
+                bail!("DNS alias cycle");
+            }
+            name = target;
+        }
+        let mut seen = HashSet::new();
+        let addresses = response
+            .answers
+            .iter()
+            .filter_map(|record| {
+                if !reachable.contains(&record.name)
+                    || record.dns_class != request.queries.as_slice()[0].query_class()
+                {
+                    return None;
+                }
+                let ip = match &record.data {
+                    RData::A(address) if !ipv6 => IpAddr::V4(address.0),
+                    RData::AAAA(address) if ipv6 => IpAddr::V6(address.0),
+                    _ => return None,
+                };
+                seen.insert(ip).then_some(SocketAddr::new(ip, port))
+            })
+            .take(8)
+            .collect::<Vec<_>>();
+        ensure!(!addresses.is_empty(), "DNS NODATA (no address record)");
+        Ok(addresses)
+    }
+
+    pub async fn lookup_first(&self, host: &str, port: u16) -> Result<Vec<SocketAddr>> {
+        let v4 = self.lookup_family(host, port, false);
+        let v6 = self.lookup_family(host, port, true);
+        tokio::pin!(v4, v6);
+        let (first, second) = tokio::select! {
+            result = &mut v6 => {
+                if result.as_ref().is_ok_and(|addresses| !addresses.is_empty()) { return result; }
+                (result, (&mut v4).await)
+            },
+            result = &mut v4 => {
+                if result.as_ref().is_ok_and(|addresses| !addresses.is_empty()) { return result; }
+                (result, (&mut v6).await)
+            },
+        };
+        if first.as_ref().is_ok_and(|addresses| !addresses.is_empty()) {
+            return first;
+        }
+        if second.as_ref().is_ok_and(|addresses| !addresses.is_empty()) {
+            return second;
+        }
+        bail!(
+            "DNS lookup failed for {host}: {}; {}",
+            first
+                .err()
+                .map(|error| format!("{error:#}"))
+                .unwrap_or_default(),
+            second
+                .err()
+                .map(|error| format!("{error:#}"))
+                .unwrap_or_default()
+        )
+    }
     pub async fn query(&self, request: &Message) -> Result<Message> {
+        let result = tokio::time::timeout(Duration::from_secs(40), self.query_shared(request))
+            .await
+            .context("DNS request budget expired")
+            .and_then(|result| result);
+        if result.is_err() {
+            self.errors.fetch_add(1, Ordering::Relaxed);
+        }
+        result
+    }
+    fn cached(&self, request: &Message, key: &str) -> Option<Message> {
+        let cache = self.cache.lock().unwrap();
+        let entry = cache.get(key)?;
+        if entry.expires <= Instant::now() {
+            return None;
+        }
+        self.hits.fetch_add(1, Ordering::Relaxed);
+        let mut message = entry.message.clone();
+        message.metadata.id = request.id;
+        let age = entry.stored.elapsed().as_secs().min(u32::MAX as u64) as u32;
+        for record in message
+            .answers
+            .iter_mut()
+            .chain(message.authorities.iter_mut())
+            .chain(message.additionals.iter_mut())
+        {
+            record.ttl = record.ttl.saturating_sub(age);
+        }
+        Some(message)
+    }
+    async fn query_shared(&self, request: &Message) -> Result<Message> {
         ensure!(
             request.message_type == MessageType::Query
                 && request.op_code == hickory_proto::op::OpCode::Query
@@ -293,37 +464,63 @@ impl Resolver {
             return Ok(self.blocked_answer(request));
         }
         let cacheable = request.additionals.as_slice().is_empty()
+            && request.answers.as_slice().is_empty()
+            && request.authorities.as_slice().is_empty()
             && request.edns.is_none()
-            && !request.checking_disabled;
+            && !request.checking_disabled
+            && !request.truncation
+            && !request.authoritative
+            && !request.recursion_available
+            && request.response_code == ResponseCode::NoError;
         let generation = self.generation.load(Ordering::SeqCst);
         let key = format!(
-            "{generation}:{}:{:?}:{:?}",
+            "{generation}:{}:{:?}:{:?}:{}:{}",
             q.name().to_ascii().trim_end_matches('.').to_lowercase(),
             q.query_type(),
-            q.query_class()
+            q.query_class(),
+            request.recursion_desired,
+            request.authentic_data
         );
-        if cacheable {
-            let cache = self.cache.lock().unwrap();
-            if let Some(entry) = cache.get(&key)
-                && entry.expires > Instant::now()
-            {
-                self.hits.fetch_add(1, Ordering::Relaxed);
-                let mut message = entry.message.clone();
-                message.metadata.id = request.id;
-                let age = entry.stored.elapsed().as_secs() as u32;
-                for record in message.answers.iter_mut() {
-                    record.ttl = record.ttl.saturating_sub(age);
-                }
-                for record in message.authorities.iter_mut() {
-                    record.ttl = record.ttl.saturating_sub(age);
-                }
-                for record in message.additionals.iter_mut() {
-                    record.ttl = record.ttl.saturating_sub(age);
-                }
-                return Ok(message);
-            }
+        if cacheable && let Some(message) = self.cached(request, &key) {
+            return Ok(message);
         }
         self.misses.fetch_add(1, Ordering::Relaxed);
+        if !cacheable {
+            return self.query_upstream(request, generation, key, false).await;
+        }
+        loop {
+            match self.flights.join(&key)? {
+                crate::dns_flight::Ticket::Owner(owner) => {
+                    // A preceding owner can finish between our cache read and registry lock.
+                    let result = match self.cached(request, &key) {
+                        Some(message) => Ok(message),
+                        None => {
+                            self.query_upstream(request, generation, key.clone(), true)
+                                .await
+                        }
+                    };
+                    owner.finish(&result);
+                    return result;
+                }
+                crate::dns_flight::Ticket::Follower(follower) => {
+                    self.coalesced.fetch_add(1, Ordering::Relaxed);
+                    if let Some(result) = follower.wait().await {
+                        return result.map(|mut message| {
+                            message.metadata.id = request.id;
+                            message
+                        });
+                    }
+                }
+            }
+        }
+    }
+    async fn query_upstream(
+        &self,
+        request: &Message,
+        generation: u64,
+        key: String,
+        cacheable: bool,
+    ) -> Result<Message> {
         let encrypted = self.encrypted.read().unwrap().clone();
         let servers = self.servers.read().unwrap().clone();
         let mut last = String::new();
@@ -333,6 +530,7 @@ impl Resolver {
             encrypted.len()
         };
         for index in 0..count {
+            self.upstream_queries.fetch_add(1, Ordering::Relaxed);
             let exchange = async {
                 if encrypted.is_empty() {
                     self.exchange(servers[index], request).await
@@ -352,9 +550,7 @@ impl Resolver {
             };
             match tokio::time::timeout(Duration::from_secs(timeout), exchange).await {
                 Ok(Ok(message)) => {
-                    if self.blocked_alias(request, &message).inspect_err(|_| {
-                        self.errors.fetch_add(1, Ordering::Relaxed);
-                    })? {
+                    if self.blocked_alias(request, &message)? {
                         return Ok(self.blocked_answer(request));
                     }
                     if cacheable
@@ -399,7 +595,6 @@ impl Resolver {
                 Err(_) => last = "DNS upstream timeout".into(),
             }
         }
-        self.errors.fetch_add(1, Ordering::Relaxed);
         bail!("DNS failed: {last}")
     }
     async fn exchange(&self, server: SocketAddr, request: &Message) -> Result<Message> {

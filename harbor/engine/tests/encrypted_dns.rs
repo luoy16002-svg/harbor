@@ -99,6 +99,32 @@ async fn wrong_tls_name_is_rejected_without_plaintext_fallback() {
     );
     task.abort();
 }
+
+#[tokio::test]
+async fn concurrent_identical_queries_share_one_verified_tls_exchange() {
+    let (settings, accepts, task) = fixture().await;
+    let resolver = Arc::new(Resolver::new(
+        vec!["127.0.0.1:9".parse().unwrap()],
+        Arc::new(Egress::default()),
+    ));
+    resolver.configure(vec!["127.0.0.1:9".parse().unwrap()], vec![settings]);
+    let responses = futures_util::future::join_all((0..64).map(|id| {
+        let resolver = resolver.clone();
+        async move {
+            let mut request = query("shared-tls.fixture.invalid");
+            request.metadata.id = id;
+            resolver.query(&request).await.unwrap()
+        }
+    }))
+    .await;
+    assert_eq!(accepts.load(Ordering::SeqCst), 1);
+    assert_eq!(resolver.stats().upstream_queries, 1);
+    assert_eq!(resolver.stats().coalesced, 63);
+    for (id, response) in responses.iter().enumerate() {
+        assert_eq!(response.id, id as u16);
+    }
+    task.abort();
+}
 #[tokio::test]
 async fn untrusted_dns_certificate_is_rejected() {
     let (mut settings, _, task) = fixture().await;

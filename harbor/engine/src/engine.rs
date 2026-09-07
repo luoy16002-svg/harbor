@@ -174,6 +174,9 @@ impl Engine {
         }
         let generation = old.generation + 1;
         self.telemetry.configure(&config.privacy);
+        self.resolver
+            .dialer
+            .set_metadata_hidden(config.privacy.hide_metadata);
         self.current.store(Arc::new(RuntimeConfig {
             filter: crate::privacy::DomainFilter::new(&config.privacy),
             config,
@@ -230,7 +233,7 @@ impl Engine {
             .iter()
             .filter(|f| f.state == "active" || f.state == "connecting")
             .count();
-        json!({"running":!self.cancel.is_cancelled(),"version":env!("CARGO_PKG_VERSION"),"generation":current.generation,"routingMode":current.config.routing_mode,"uptimeSecs":self.started.elapsed().as_secs(),"listen":current.config.listen,"dnsListen":current.config.dns_listen,"tun":current.config.tun,"activeConnections":active,"accepted":self.telemetry.accepted.load(Ordering::Relaxed),"failed":self.telemetry.failed.load(Ordering::Relaxed),"uploaded":self.telemetry.uploaded.load(Ordering::Relaxed),"downloaded":self.telemetry.downloaded.load(Ordering::Relaxed),"flows":flows.iter().take(500).collect::<Vec<_>>(),"events":self.telemetry.events.lock().unwrap().iter().take(100).collect::<Vec<_>>(),"nodes":self.selector.lock().unwrap().health.values().collect::<Vec<_>>(),"dns":self.resolver.stats()})
+        json!({"running":!self.cancel.is_cancelled(),"version":env!("CARGO_PKG_VERSION"),"generation":current.generation,"routingMode":current.config.routing_mode,"uptimeSecs":self.started.elapsed().as_secs(),"listen":current.config.listen,"dnsListen":current.config.dns_listen,"tun":current.config.tun,"activeConnections":active,"accepted":self.telemetry.accepted.load(Ordering::Relaxed),"failed":self.telemetry.failed.load(Ordering::Relaxed),"uploaded":self.telemetry.uploaded.load(Ordering::Relaxed),"downloaded":self.telemetry.downloaded.load(Ordering::Relaxed),"flows":flows.iter().take(500).collect::<Vec<_>>(),"events":self.telemetry.events.lock().unwrap().iter().take(100).collect::<Vec<_>>(),"nodes":self.selector.lock().unwrap().health.values().collect::<Vec<_>>(),"dns":self.resolver.stats(),"dialing":self.resolver.dial_stats()})
     }
     pub async fn probe(&self) -> Value {
         let _probe = self.probe_lock.lock().await;

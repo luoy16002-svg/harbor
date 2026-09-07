@@ -159,7 +159,8 @@ public partial class MainWindow : Window
             var selected = (FlowGrid.SelectedItem as FlowRow)?.Id;
             flows = (snapshot["flows"]?.AsArray() ?? []).Select(f => new FlowRow(N(f!, "id"), S(f!, "destination"), S(f!, "protocol"), S(f!, "outbound"), Format.Bytes(N(f!, "uploaded") + N(f!, "downloaded")), State(S(f!, "state")), S(f!, "reason"), S(f!, "policy"), N(f!, "generation"), S(f!, "error"))).ToList();
             RecentGrid.ItemsSource = flows.Take(5).ToList(); ApplyFlowFilter(); if (selected != null) FlowGrid.SelectedItem = flows.FirstOrDefault(f => f.Id == selected);
-            RefreshNodes(); var dns = snapshot["dns"]!; DnsStats.Text = $"缓存 {N(dns, "entries")} 条 · 命中 {N(dns, "hits")} 次 · 上游查询 {N(dns, "misses")} 次 · 拦截 {N(dns, "blocked")} 次 · 错误 {N(dns, "errors")} 次";
+            RefreshNodes(); var dns = snapshot["dns"]!; DnsStats.Text = $"缓存 {N(dns, "entries")} 条 · 命中 {N(dns, "hits")} 次 · 上游请求 {N(dns, "upstreamQueries")} 次 · 合并 {N(dns, "coalesced")} 次 · 拦截 {N(dns, "blocked")} 次 · 错误 {N(dns, "errors")} 次";
+            if (snapshot["dialing"] is { } dialing) DialingStats.Text = $"TCP 建连成功 {N(dialing, "succeeded")} 次 · 失败 {N(dialing, "failed")} 次 · 地址回退 {N(dialing, "fallbacks")} 次 · 路径记忆命中 {N(dialing, "remembered")} 次 · 已清理并发尝试 {N(dialing, "cancelledAttempts")} 次";
             EventGrid.ItemsSource = (snapshot["events"]?.AsArray() ?? []).Select(v => new { Time = DateTimeOffset.FromUnixTimeMilliseconds((long)N(v!, "time")).ToLocalTime().ToString("HH:mm:ss"), Level = S(v!, "level"), Message = S(v!, "message") }).ToList();
             DiagnosticSummary.Text = $"已处理 {N(snapshot, "accepted")} 条连接 · 失败 {N(snapshot, "failed")} 条";
         }
@@ -308,7 +309,8 @@ public partial class MainWindow : Window
         var dialog = new SaveFileDialog { Filter = "JSON diagnostics|*.json", FileName = "harbor-diagnostics-" + DateTime.Now.ToString("yyyyMMdd-HHmm") + ".json" }; if (dialog.ShowDialog(this) != true) return;
         var report = new JsonObject { { "capturedAt", DateTimeOffset.UtcNow.ToString("O") }, { "application", "Harbor" }, { "version", typeof(MainWindow).Assembly.GetName().Version?.ToString() ?? "unknown" } };
         foreach (var key in new[] { "running", "generation", "uptimeSecs", "activeConnections", "accepted", "failed", "uploaded", "downloaded" }) report[key] = snapshot?[key]?.DeepClone();
-        var dns = new JsonObject(); foreach (var key in new[] { "hits", "misses", "errors", "entries", "blocked" }) dns[key] = snapshot?["dns"]?[key]?.DeepClone(); report["dns"] = dns;
+        var dns = new JsonObject(); foreach (var key in new[] { "hits", "misses", "errors", "entries", "blocked", "upstreamQueries", "coalesced", "inFlight" }) dns[key] = snapshot?["dns"]?[key]?.DeepClone(); report["dns"] = dns;
+        var dialing = new JsonObject(); foreach (var key in new[] { "started", "succeeded", "failed", "cancelled", "active", "attempts", "activeAttempts", "cancelledAttempts", "fallbacks", "remembered", "rememberedPaths" }) dialing[key] = snapshot?["dialing"]?[key]?.DeepClone(); report["dialing"] = dialing;
         report["configuredNodes"] = profile["nodes"]!.AsArray().Count; report["configuredRules"] = profile["rules"]!.AsArray().Count;
         File.WriteAllText(dialog.FileName, report.ToJsonString(Storage.Json)); ShowNotice("已导出汇总诊断，不包含地址、连接目标、日志正文或凭据。");
     }

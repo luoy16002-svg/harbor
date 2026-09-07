@@ -1,6 +1,6 @@
 [package]
 name = "harbor-engine"
-version = "0.8.0"
+version = "0.9.0"
 edition = "2024"
 publish = false
 license = "MIT"
@@ -47,3 +47,4 @@ windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Network
 
 [dev-dependencies]
 rcgen = "0.14"
+tokio = { version = "1", features = ["test-util"] }

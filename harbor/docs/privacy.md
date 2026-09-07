@@ -10,6 +10,8 @@ Provider-reported subscription usage and expiry are stored in the same encrypted
 
 Connection records stay in memory. Completed records are kept for 300 seconds by default, configurable from 0 to 86,400 seconds. Hiding details clears stored destinations, sources, proxies, rule reasons, and error text. It does not remove records held by Windows, browsers, or other apps.
 
+The TCP dialer can retain up to 512 host-and-port hints in memory for five minutes after success. A hint contains the successful address, selected interface context, and TCP setup time. It is never written to disk or exported and is used only when that address appears in a current DNS response. Clearing DNS, changing DNS configuration, or detecting a physical-interface change invalidates hints. Hiding connection details clears and disables this memory for subsequent dials; numeric counters remain available. Active connection work still needs its destination to finish or cancel.
+
 Request bodies are not logged. Diagnostic export contains summary fields. **Configuration export contains credentials.**
 
 HTTPS checks send a HEAD request through the selected proxy to `www.example.com`. Saved results contain the proxy name, a configuration fingerprint, outcome, duration, and timestamp. They contain no response body and can be cleared from the proxy page. Results older than 24 hours are marked for retesting.

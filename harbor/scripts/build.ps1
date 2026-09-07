@@ -38,7 +38,13 @@ try {
     if($LASTEXITCODE -ne 0){throw 'License collection failed'}
     if($Interop){$previousTestEngine=$env:HARBOR_TEST_ENGINE;try{$env:HARBOR_TEST_ENGINE=Join-Path $package 'harbor-engine.exe';python tests/interop.py;if($LASTEXITCODE -ne 0){throw 'Protocol interop failed'}}finally{$env:HARBOR_TEST_ENGINE=$previousTestEngine}}
     $previousTestEngine=$env:HARBOR_TEST_ENGINE
-    try{$env:HARBOR_TEST_ENGINE=Join-Path $package 'harbor-engine.exe';python tests/control_plane.py;if($LASTEXITCODE -ne 0){throw 'Control-plane checks failed'}}finally{$env:HARBOR_TEST_ENGINE=$previousTestEngine}
+    try{
+        $env:HARBOR_TEST_ENGINE=Join-Path $package 'harbor-engine.exe'
+        python tests/control_plane.py
+        if($LASTEXITCODE -ne 0){throw 'Control-plane checks failed'}
+        python tests/connection_quality.py
+        if($LASTEXITCODE -ne 0){throw 'Connection-quality checks failed'}
+    }finally{$env:HARBOR_TEST_ENGINE=$previousTestEngine}
     if($Visual){
         $visualDirectory=Join-Path $projectRoot '.cache/visual-final'
         $visualProcess=Start-Process -FilePath (Join-Path $package 'Harbor.exe') -ArgumentList @('--visual-check',('"'+$visualDirectory+'"')) -WindowStyle Hidden -PassThru

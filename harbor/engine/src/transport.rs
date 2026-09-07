@@ -109,28 +109,9 @@ pub fn parse_address(bytes: &[u8]) -> Result<(String, u16, usize)> {
 }
 
 pub async fn tcp(resolver: &Resolver, host: &str, port: u16) -> Result<BoxStream> {
-    let addresses = resolver.lookup(host, port).await?;
-    // Race address families with a bounded stagger; a dead first address must not consume the entire connection timeout.
-    let mut tasks = tokio::task::JoinSet::new();
-    for (i, address) in addresses.into_iter().take(8).enumerate() {
-        let egress = resolver.egress.clone();
-        tasks.spawn(async move {
-            tokio::time::sleep(Duration::from_millis(i as u64 * 200)).await;
-            egress.tcp(address).await
-        });
-    }
-    let mut error = String::new();
-    while let Some(result) = tasks.join_next().await {
-        match result {
-            Ok(Ok(stream)) => {
-                tasks.abort_all();
-                return Ok(Box::new(stream));
-            }
-            Ok(Err(e)) => error = e.to_string(),
-            Err(e) => error = e.to_string(),
-        }
-    }
-    bail!("All destination addresses failed: {error}")
+    Ok(Box::new(
+        resolver.dialer.connect(resolver, host, port).await?,
+    ))
 }
 fn tls_config() -> Result<Arc<ClientConfig>> {
     static TLS: OnceLock<Arc<ClientConfig>> = OnceLock::new();

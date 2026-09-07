@@ -1,6 +1,6 @@
 # Harbor
 
-A Windows proxy client with a Rust forwarding engine and a WPF desktop. This is the **0.8.0 preview**.
+A Windows proxy client with a Rust forwarding engine and a WPF desktop. This is the **0.9.0 preview**.
 
 ## Use
 
@@ -24,6 +24,7 @@ Upstream connections use a physical network adapter by default to avoid routing 
 - Routing rules, proxy groups, and offline comparisons of routing changes.
 - Saved routing modes: rules, one default outbound, or direct; live switching preserves established connections.
 - DoH / DoT, local domain lists, and connection privacy controls.
+- Streaming dual-stack TCP setup, shared concurrent DNS queries, and bounded in-memory path hints.
 - Live traffic, connection details, tray actions, and proxy search.
 - Encrypted, saved HTTPS check results with timestamps and configuration-based expiry.
 - Batch HTTPS checks for the filtered list, progress, cancellation, and numeric elapsed-time sorting.
@@ -55,6 +56,8 @@ Local domain blocks and transport privacy restrictions apply in every mode. For 
 Switching modes updates new TCP connections and new UDP destination sessions; existing sessions keep their original configuration. The routing page can compare a candidate mode and default outbound offline without applying either. Changing the active configuration or preview inputs clears older comparison results. Old profiles without `routingMode` continue to use rules.
 
 New workspaces use AliDNS DoH first and Cloudflare DoH as a fallback. Certificates are verified; encrypted DNS does not silently fall back to plaintext. DNS settings can select a different provider or custom endpoint.
+
+TCP setup starts from available DNS answers without waiting for a slow address family. Attempts alternate between IPv6 and IPv4, with at most eight attempts per dial; a recent successful address can be preferred if it is still in the current DNS response. Concurrent ordinary DNS questions share upstream work. Diagnostics show aggregate connection and query counters. See [connection quality](docs/connection-quality.md) for bounds, cancellation behavior, and reproducible local comparisons.
 
 ## Limits
 

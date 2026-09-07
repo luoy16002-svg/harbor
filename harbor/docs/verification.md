@@ -1,13 +1,14 @@
 # Verification
 
-These results apply to the 0.8.0 preview checked on 2026-09-07. They do not establish production readiness or carry over automatically to later builds.
+These results apply to the 0.9.0 preview checked on 2026-09-07. They do not establish production readiness or carry over automatically to later builds.
 
 | Check | Result | Scope |
 | --- | --- | --- |
-| Rust tests | 36 passed | Protocols, routing modes, packets, privacy precedence, encrypted DNS, and adapter selection |
+| Rust tests | 56 passed | Protocols, routing modes, packets, privacy precedence, encrypted DNS sharing, cancellation, dual-stack scheduling, and adapter selection |
 | Desktop checks | 59 passed | Imports, subscription headers and diffs, DPAPI, recovery, mode defaults, encrypted configuration history, restoration, bounded batch scheduling, and cancellation |
 | Independent interop | 49 passed | Xray v26.3.27, TCP/UDP paths, 2 MiB payloads, delayed replies, source-port reuse, and concurrent connections |
 | Control interface | 13 passed | Isolation, preflight, stop, atomic configuration changes, targeted cancellation, and routing-mode changes over real TCP/UDP sessions |
+| Connection quality | 5 passed | Delayed DNS family, long address lists, concurrent query sharing, path memory and privacy, and first-answer preflight; release-engine comparison with 0.8.0 |
 | WPF workflows | 54 passed | Import, search, tray controls, HTTPS batches, subscription updates, mode selectors, configuration restoration, stale reviews, reconnect polling, and failed-save rollback |
 | Layout | Passed | Ten pages, five dialogs, 1280/980-pixel main windows, a 640-pixel subscription preview, and a 660-pixel history preview |
 | Build | Passed | Strict Clippy and desktop compilation without warnings |
@@ -15,6 +16,8 @@ These results apply to the 0.8.0 preview checked on 2026-09-07. They do not esta
 Dependency advisory queries returned no findings for the locked dependencies at the time of the check. This is not a security audit.
 
 UI traffic checks used four real SOCKS5 connections to a loopback echo server. Rendered charts show local test traffic, not internet speed.
+
+TCP scheduling tests use virtual time to exercise slow resolution, stalled and failed addresses, delayed alternate families, attempt limits, and caller cancellation. Real local DNS and TCP tests check transaction IDs, query flags, owner handoff, cache generations, CNAME address selection, path memory, and metadata hiding. Separate 64-query UDP and verified DoT bursts each share one upstream question. Five [connection-quality scenarios](connection-quality.md) run against the packaged engine and record its hash; timings describe injected local faults and do not measure internet throughput.
 
 Batch checks used two loopback HTTP CONNECT servers that held their replies until cancellation. Both sockets closed, the third queued proxy was untouched, previous results remained, and the active engine kept running. A separate privacy-blocked batch verified that changing the search field does not expand a batch already in progress. Historical times shown in the batch layout fixtures are synthetic data used to check sorting and retention.
 
