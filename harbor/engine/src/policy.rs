@@ -16,6 +16,8 @@ pub struct Decision {
     pub reason: String,
     pub rule_index: Option<usize>,
     pub generation: u64,
+    #[serde(skip)]
+    pub require_encrypted_proxy: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -66,14 +68,13 @@ impl Health {
             }
         }
     }
-    fn usable(&self) -> bool {
-        self.state != "unavailable"
-    }
 }
 
 #[derive(Default)]
 pub struct Selector {
     pub health: HashMap<String, Health>,
+    pub pool_health: HashMap<(String, String), crate::pools::PoolHealth>,
+    pub pool_stats: HashMap<String, crate::pools::PoolStats>,
     chosen: HashMap<(String, SelectionGuard), (String, Instant)>,
 }
 
@@ -101,7 +102,19 @@ impl SelectionGuard {
     }
 }
 impl Selector {
+    pub fn remember_pool_outbound(&mut self, decision: &Decision, outbound: &str) {
+        for ((group, guard), chosen) in &mut self.chosen {
+            if group == &decision.policy
+                && !guard.udp
+                && guard.encrypted == decision.require_encrypted_proxy
+                && chosen.0 != outbound
+            {
+                *chosen = (outbound.into(), Instant::now());
+            }
+        }
+    }
     pub fn reconcile(&mut self, config: &Config) {
+        self.reconcile_pools(config);
         self.health
             .retain(|name, _| config.nodes.iter().any(|n| &n.name == name));
         for node in &config.nodes {
@@ -147,11 +160,14 @@ impl Selector {
         if group.kind == GroupKind::Select {
             return Ok(group.selected.as_ref().unwrap_or(&group.members[0]).clone());
         }
-        let usable = |n: &String| {
-            (n == "DIRECT" || self.health.get(n).is_none_or(Health::usable))
-                && guard.allows(config, n)
-        };
-        let candidates: Vec<_> = group.members.iter().filter(|n| usable(n)).collect();
+        let mut candidates: Vec<_> = group
+            .members
+            .iter()
+            .filter(|n| self.pool_usable(group, n, now) && guard.allows(config, n))
+            .collect();
+        if candidates.iter().any(|n| self.pool_verified(group, n, now)) {
+            candidates.retain(|n| self.pool_verified(group, n, now));
+        }
         if candidates.is_empty() {
             bail!("No healthy eligible outbound in group {name}; direct fallback is disabled");
         }
@@ -159,6 +175,16 @@ impl Selector {
             if n == "DIRECT" {
                 0.0
             } else {
+                if group.pool.as_ref().is_some_and(|p| p.monitor) {
+                    return if self.pool_verified(group, n, now) {
+                        self.pool_health
+                            .get(&(name.into(), n.into()))
+                            .and_then(|h| h.latency_ms)
+                            .unwrap_or(f64::INFINITY)
+                    } else {
+                        f64::INFINITY
+                    };
+                }
                 self.health
                     .get(n)
                     .and_then(|h| h.latency_ms)
@@ -184,11 +210,17 @@ impl Selector {
             }
             let old = latency(current);
             let new = latency(preferred);
-            let enough_samples = preferred == "DIRECT"
-                || self
-                    .health
-                    .get(preferred)
-                    .is_some_and(|h| h.consecutive_successes >= 3);
+            let enough_samples = if group.pool.as_ref().is_some_and(|p| p.monitor) {
+                self.pool_health
+                    .get(&(name.into(), preferred.clone()))
+                    .is_some_and(|h| h.consecutive_successes >= 3)
+            } else {
+                preferred == "DIRECT"
+                    || self
+                        .health
+                        .get(preferred)
+                        .is_some_and(|h| h.consecutive_successes >= 3)
+            };
             if preferred == current || !enough_samples || old - new < 30.0 || new > old * 0.8 {
                 return Ok(current.clone());
             }
@@ -245,6 +277,7 @@ pub fn decide_with_process(
             reason: "Privacy: local domain block rule".into(),
             rule_index: None,
             generation,
+            require_encrypted_proxy: false,
         });
     }
     let ip = host.parse::<IpAddr>().ok();
@@ -328,6 +361,15 @@ pub fn decide_with_process(
             reason += " · Transport: no healthy outbound supports UDP";
             "REJECT".into()
         }
+        Err(_)
+            if config
+                .groups
+                .iter()
+                .any(|g| g.name == policy && g.pool.is_some()) =>
+        {
+            reason += " · Pool: no usable member; direct fallback is disabled";
+            "REJECT".into()
+        }
         Err(error) => return Err(error),
     };
     if protected
@@ -360,6 +402,7 @@ pub fn decide_with_process(
         reason,
         rule_index,
         generation,
+        require_encrypted_proxy: guard.encrypted,
     })
 }
 
@@ -377,6 +420,7 @@ mod tests {
             .unwrap(),
         );
         config.groups.push(Group {
+            pool: None,
             name: "chosen".into(),
             kind: GroupKind::Select,
             members: vec!["fixture".into(), "DIRECT".into()],
@@ -451,6 +495,7 @@ mod tests {
         config.privacy.require_encrypted_proxy = false;
         config.routing_mode = RoutingMode::Global;
         config.groups.push(Group {
+            pool: None,
             name: "auto".into(),
             kind: GroupKind::Fallback,
             members: vec!["fixture".into()],
@@ -510,6 +555,7 @@ mod tests {
             );
         }
         c.groups.push(Group {
+            pool: None,
             name: "auto".into(),
             kind: GroupKind::Latency,
             members: vec!["a".into(), "b".into()],

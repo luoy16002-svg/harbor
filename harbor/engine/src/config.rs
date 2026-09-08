@@ -208,6 +208,8 @@ pub struct Group {
     pub members: Vec<String>,
     #[serde(default)]
     pub selected: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pool: Option<crate::pools::PoolSettings>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -503,6 +505,7 @@ impl Config {
             }
         }
         crate::traffic_routes::validate(self, &names)?;
+        crate::pools::validate(self)?;
         Ok(())
     }
 }

@@ -13,6 +13,7 @@ pub mod native_tun;
 pub mod net;
 pub mod packet;
 pub mod policy;
+pub mod pools;
 pub mod privacy;
 pub mod process;
 pub mod rehearsal;

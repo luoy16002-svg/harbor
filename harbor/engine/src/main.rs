@@ -174,11 +174,12 @@ async fn main() -> Result<()> {
             "stop"=>{verification_cancel.cancel();verification_cancel=tokio_util::sync::CancellationToken::new();if let Some(e)=engine.take(){e.stop().await?;tokio::time::sleep(Duration::from_millis(150)).await;}Ok(json!({"running":false}))},
             "cancel_verification"=>{let target=request.get("requestId").context("Missing verification request ID")?.to_string();let active=verifications.lock().unwrap();let cancelled=active.get(&target).is_some_and(|token|{token.cancel();true});Ok(json!({"cancelled":cancelled}))},
             "snapshot"=>Ok(engine.as_ref().map(|e|e.snapshot()).unwrap_or(json!({"running":false}))),
+            "pool_check"=>{let e=engine.as_ref().context("Engine is stopped")?;e.check_pool(request["name"].as_str().context("Missing pool name")?)?;Ok(json!({"scheduled":true}))},
             "configure"=>{let e=engine.as_ref().context("Engine is stopped")?;let c=serde_json::from_value(request["config"].clone())?;Ok(json!({"generation":e.configure(c)?}))},
             "explain"=>{let e=engine.as_ref().context("Start the engine to evaluate a route")?;let c=e.current.load_full();let host=request["host"].as_str().context("Missing host")?;let port=request["port"].as_u64().unwrap_or(443);if port==0||port>65535{bail!("Invalid port");}Ok(serde_json::to_value(e.decision(&c,host,port as u16,request["protocol"].as_str().unwrap_or("tcp"))?)?)},
 
             "clear_dns"=>{engine.as_ref().context("Engine is stopped")?.resolver.clear();Ok(json!({"cleared":true}))},
-            "clear_history"=>{engine.as_ref().context("Engine is stopped")?.telemetry.clear_history();Ok(json!({"cleared":true}))},
+            "clear_history"=>{let e=engine.as_ref().context("Engine is stopped")?;e.telemetry.clear_history();e.clear_pool_history();Ok(json!({"cleared":true}))},
             "close_flow"=>Ok(json!({"closed":engine.as_ref().context("Engine is stopped")?.close_flow(request["flowId"].as_u64().context("Missing flow ID")?)})),
             "shutdown"=>Ok(json!({"shutdown":true})),
             _=>bail!("Unknown command"),

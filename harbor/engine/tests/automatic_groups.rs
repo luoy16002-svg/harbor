@@ -18,6 +18,7 @@ fn fixture(kind: GroupKind, members: &[&str]) -> Config {
         config.nodes.push(serde_json::from_value(value).unwrap());
     }
     config.groups.push(Group {
+        pool: None,
         name: "pool".into(),
         kind,
         members: members.iter().map(|v| (*v).into()).collect(),

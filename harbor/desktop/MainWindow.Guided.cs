@@ -166,12 +166,14 @@ public partial class MainWindow
 
     private async Task RemoveOutboundAsync(string name, bool group)
     {
-        bool referenced = S(profile, "finalPolicy") == name || profile["rules"]!.AsArray().Any(v => S(v!, "policy") == name) ||
+        bool referenced = (profile["trafficRoutes"] as JsonArray ?? []).Any(v => S(v!, "policy") == name) || S(profile, "finalPolicy") == name || profile["rules"]!.AsArray().Any(v => S(v!, "policy") == name) ||
             profile["groups"]!.AsArray().Any(v => v!["members"]!.AsArray().Any(m => m!.GetValue<string>() == name));
         string? replacement = null;
         if (referenced)
         {
-            var choices = profile["nodes"]!.AsArray().Select(v => S(v!, "name")).Where(value => value != name).Concat(new[] { "REJECT", "DIRECT" }).ToArray();
+            bool poolMember = !group && profile["groups"]!.AsArray().Any(g => g?["pool"] != null && g["members"]!.AsArray().Any(n => n!.GetValue<string>() == name));
+            var choices = profile["nodes"]!.AsArray().Select(v => S(v!, "name")).Where(value => value != name).Concat(poolMember ? Array.Empty<string>() : new[] { "REJECT", "DIRECT" }).ToArray();
+            if (choices.Length == 0) { ShowNotice("这条线路仍是自动线路池的成员。请先移除对应线路池，再删除最后一条线路。"); return; }
             var form = new FormDialog(this, "移除 " + name).Field("replacement", "该出口正在被分流引用。移除后改用：", choices[0], choices);
             if (form.ShowDialog() != true) return;
             replacement = form.Get("replacement");

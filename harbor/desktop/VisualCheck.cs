@@ -32,7 +32,7 @@ internal static class VisualCheck
         var foreground = button.Foreground as SolidColorBrush; var background = button.Background as SolidColorBrush;
         double contrast = Ratio(foreground!.Color, background!.Color);
         if (contrast < 4.5) throw new InvalidOperationException("Primary button text contrast is insufficient.");
-        string[] pages = ["Nodes", "Subscriptions", "Routing", "Dns", "Privacy", "Network", "Diagnostics", "Settings", "Connections"];
+        string[] pages = ["Nodes", "Subscriptions", "Pools", "Routing", "Dns", "Privacy", "Network", "Diagnostics", "Settings", "Connections"];
         foreach (var page in pages)
         {
             ((Button)window.FindName("Nav" + page)).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -108,6 +108,11 @@ internal static class VisualCheck
             surface.UpdateLayout(); await surface.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
             Render(surface, Path.Combine(directory, name + ".png"));
         });
+        var pools = await window.CheckPoolsAsync(async (surface, name) =>
+        {
+            surface.UpdateLayout(); await surface.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
+            Render(surface, Path.Combine(directory, name + ".png"));
+        });
         var traffic = await window.CheckLoopbackTrafficAsync(async () =>
         {
             window.UpdateLayout(); await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle); Render(window, Path.Combine(directory, "overview-live.png"));
@@ -126,7 +131,7 @@ internal static class VisualCheck
             window.Width = 1280; window.Height = 840;
         });
         string assemblyHash = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(typeof(VisualCheck).Assembly.Location)));
-        File.WriteAllText(Path.Combine(directory, "visual-check.json"), JsonSerializer.Serialize(new { checkedAt = DateTimeOffset.UtcNow, passed = true, applicationSha256 = assemblyHash, primaryButtonContrast = contrast, primaryText = foreground.Color.ToString(), primaryBackground = background.Color.ToString(), navigation = "vector paths; CJK text uses Microsoft YaHei UI", pages = pages.Length + 1, scrollbars, wheelChecked, guided, batch, subscriptions, routing, history, exceptions, paths, traffic }, Storage.Json));
+        File.WriteAllText(Path.Combine(directory, "visual-check.json"), JsonSerializer.Serialize(new { checkedAt = DateTimeOffset.UtcNow, passed = true, applicationSha256 = assemblyHash, primaryButtonContrast = contrast, primaryText = foreground.Color.ToString(), primaryBackground = background.Color.ToString(), navigation = "vector paths; CJK text uses Microsoft YaHei UI", pages = pages.Length + 1, scrollbars, wheelChecked, guided, batch, subscriptions, routing, history, exceptions, paths, pools, traffic }, Storage.Json));
     }
     private static IEnumerable<T> Descendants<T>(DependencyObject root) where T : DependencyObject
     {

@@ -340,7 +340,7 @@ impl TunHandle {
         let monitor = tokio::spawn(async move {
             loop {
                 tokio::select! {_=token.cancelled()=>break,_=tokio::time::sleep(Duration::from_secs(3))=>{
-                    if let Ok((v4,v6))=physical_routes(index){let old4=e.egress.ipv4.swap(v4,Ordering::Relaxed);let old6=e.egress.ipv6.swap(v6,Ordering::Relaxed);if old4!=v4||old6!=v6{e.resolver.clear();e.telemetry.event("info","Physical network changed. New connections use the updated interface; existing streams retain their route.");}}
+                    if let Ok((v4,v6))=physical_routes(index){let old4=e.egress.ipv4.swap(v4,Ordering::Relaxed);let old6=e.egress.ipv6.swap(v6,Ordering::Relaxed);if old4!=v4||old6!=v6{e.resolver.clear();e.invalidate_pools();e.telemetry.event("info","Physical network changed. New connections use the updated interface; existing streams retain their route.");}}
                 }}
             }
         });

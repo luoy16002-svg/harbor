@@ -83,6 +83,7 @@ internal static class TrafficRoutes
                 (!(requireEncrypted || profile["privacy"]?["requireEncryptedProxy"]?.GetValue<bool>() == true) || Encrypted(candidate, protocol));
         });
         string Counts() => $" 非回环目标按配置可用：TCP {Eligible("tcp")} / UDP {Eligible("udp")} 个成员，未计入实时健康状态。";
+        if (group?["pool"] != null) return "自动线路池 · HTTPS 健康监测，建连失败时在合格成员间继续尝试。" + Counts();
         return group?["kind"]?.GetValue<string>() switch
         {
             "select" => "固定成员 · " + member + " · " + MemberFacts(),
@@ -115,6 +116,9 @@ internal static class TrafficRoutes
         ? "Harbor DNS 已配置加密，失败不回退明文；查询直达所选 DNS 服务。"
         : "Harbor DNS 使用明文上游。";
     internal static string ExplainReason(string reason) => reason
+        .Replace("Pool: no usable member; direct fallback is disabled", "线路池：没有可用成员，连接已拦截", StringComparison.Ordinal)
+        .Replace("Pool: recovered on attempt 2 before forwarding", "线路池：第 2 次建连成功，开始转发", StringComparison.Ordinal)
+        .Replace("Pool: recovered on attempt 3 before forwarding", "线路池：第 3 次建连成功，开始转发", StringComparison.Ordinal)
         .Replace("PATH · ", "路径 · ", StringComparison.Ordinal)
         .Replace("Protection: no healthy encrypted outbound for this transport", "保护要求：没有符合本次传输要求的可选加密出口", StringComparison.Ordinal)
         .Replace("Protection: an encrypted proxy is required for this transport", "保护要求：本次传输必须使用加密代理", StringComparison.Ordinal)

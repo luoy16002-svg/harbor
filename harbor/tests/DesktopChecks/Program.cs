@@ -314,6 +314,7 @@ Check("Legacy routing stays rule-based and direct mode can start without importi
 WorkspaceHistoryChecks.Run(Check);
 DirectExceptionChecks.Run(Check);
 TrafficRouteChecks.Run(Check);
+ProxyPoolChecks.Run(Check);
 Console.WriteLine($"{passed} checks passed.");
 
 internal sealed class FakeStore(ProxySettings current):IProxyStore

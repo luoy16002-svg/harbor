@@ -222,6 +222,24 @@ def run():
                 assert routed and all(flow['outbound']==expected and flow['downloaded']>0 for flow in routed),routed
         check('automatic group keeps working TCP and UDP members independently',lambda:automatic_transports(False))
         check('global encryption selects eligible automatic members with real TCP and UDP payloads',lambda:automatic_transports(True))
+        def pool_recovery():
+            engine.ask('stop')
+            primary=dict(next(n for n in nodes if n['kind']=='https'), name='invalid-tls-primary', tlsServerName='wrong.invalid')
+            backup=next(n for n in nodes if n['kind']=='shadowsocks')
+            engine.config.update(nodes=[primary,backup], groups=[], finalPolicy=primary['name'], routingMode='global', probeIntervalSecs=3600)
+            engine.config['privacy'].update(requireEncryptedProxy=True,blockDirect=True)
+            engine.start()
+            for label,transfer in [('socks',roundtrip),('connect',connect_pipeline),('http',http_flow)]:
+                name='recovery-'+label
+                engine.config.update(groups=[dict(name=name,kind='fallback',members=[primary['name'],backup['name']],pool=dict(monitor=False))],finalPolicy=name)
+                engine.ask('configure',config=engine.config)
+                transfer()
+                snapshot=engine.ask('snapshot')
+                flow=next(f for f in snapshot['flows'] if f['policy']==name)
+                assert flow['outbound']==backup['name'] and [a['state'] for a in flow['attempts']]==['failed','connected'],flow
+                assert flow['attempts'][0]['errorCategory']=='proxy' and snapshot['pools'][0]['stats']['recovered']==1
+        check('automatic pool recovers SOCKS, CONNECT pipelining and HTTP through encrypted Xray backup',pool_recovery)
+
     finally:
         if engine:engine.close()
         if ref:ref.terminate();ref.wait(timeout=5)

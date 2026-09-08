@@ -57,6 +57,7 @@ internal static class WorkspaceHistory
             throw new InvalidDataException("配置历史中的分流模式无效。");
         DirectExceptions.Read(state.Profile);
         TrafficRoutes.Read(state.Profile);
+        ProxyPools.Validate(state.Profile);
     }
 
     internal static WorkspaceState Clone(WorkspaceState value) => new(value.Profile.DeepClone().AsObject(),

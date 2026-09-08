@@ -59,14 +59,15 @@ public partial class MainWindow : Window
     {
         string name = (sender as Button)?.Tag?.ToString() ?? "Overview";
         if (name == "Settings") RefreshWorkspaceHistorySummary();
-        foreach (string key in new[] { "Overview", "Connections", "Nodes", "Subscriptions", "Routing", "Dns", "Diagnostics", "Privacy", "Network", "Settings" })
+        foreach (string key in new[] { "Overview", "Connections", "Nodes", "Subscriptions", "Pools", "Routing", "Dns", "Diagnostics", "Privacy", "Network", "Settings" })
         {
             ((UIElement)FindName(key + "Page")).Visibility = key == name ? Visibility.Visible : Visibility.Collapsed;
             ((Button)FindName("Nav" + key)).Background = key == name ? new SolidColorBrush(Color.FromRgb(223, 233, 228)) : Brushes.Transparent;
         }
         if (name is "Subscriptions" or "Dns" or "Diagnostics") ((Button)FindName("Nav" + (name == "Subscriptions" ? "Nodes" : name == "Dns" ? "Privacy" : "Network"))).Background = new SolidColorBrush(Color.FromRgb(223, 233, 228));
-        string label = name switch { "Overview" => "总览", "Connections" => "连接", "Nodes" => "线路", "Subscriptions" => "订阅", "Routing" => "分流", "Dns" => "DNS", "Diagnostics" => "诊断", "Privacy" => "隐私保护", "Network" => "网络管理", _ => "设置" }; Breadcrumb.Text = label; if (name == "Network") { try { RefreshNetworkState(); } catch (Exception error) { ShowNotice(error.Message); } }
+        string label = name switch { "Overview" => "总览", "Connections" => "连接", "Nodes" => "线路", "Pools" => "线路池", "Subscriptions" => "订阅", "Routing" => "分流", "Dns" => "DNS", "Diagnostics" => "诊断", "Privacy" => "隐私保护", "Network" => "网络管理", _ => "设置" }; Breadcrumb.Text = label; if (name == "Network") { try { RefreshNetworkState(); } catch (Exception error) { ShowNotice(error.Message); } }
         if (name == "Subscriptions") RefreshSubscriptionGrid();
+        if (name == "Pools") SyncPools();
     }
     private async void ToggleEngine(object sender, RoutedEventArgs e)
     {
@@ -137,7 +138,7 @@ public partial class MainWindow : Window
         ConnectButton.Content = running ? "停止连接" : SystemProxy.IsChecked == true || profile["tun"]?.GetValue<bool>() == true ? "启动连接" : "启动本地代理"; RunState.Text = running ? "运行中" : "已停止"; SidebarStatus.Text = running ? "引擎运行中" : "引擎未启动";
         StatusDot.Fill = new SolidColorBrush(running ? Color.FromRgb(44, 133, 99) : Color.FromRgb(148, 162, 154)); SystemProxy.IsEnabled = !running && !App.Isolated; TunEnabled.IsEnabled = !running && !App.Isolated;
         SyncHome();
-        SyncTray(); if (!running) { DownloadRate.Text = UploadRate.Text = "0 B/s"; ActiveCount.Text = "0"; FooterTraffic.Text = "无网络接管"; }
+        SyncPools(); SyncTray(); if (!running) { DownloadRate.Text = UploadRate.Text = "0 B/s"; ActiveCount.Text = "0"; FooterTraffic.Text = "无网络接管"; }
     }
     private async Task RefreshAsync(Func<Task<JsonNode>>? readSnapshot = null)
     {
@@ -159,7 +160,7 @@ public partial class MainWindow : Window
             var selected = (FlowGrid.SelectedItem as FlowRow)?.Id;
             flows = (snapshot["flows"]?.AsArray() ?? []).Select(f => new FlowRow(N(f!, "id"), S(f!, "destination"), S(f!, "protocol"), S(f!, "outbound"), Format.Bytes(N(f!, "uploaded") + N(f!, "downloaded")), State(S(f!, "state")), S(f!, "reason"), S(f!, "policy"), N(f!, "generation"), S(f!, "error"))).ToList();
             RecentGrid.ItemsSource = flows.Take(5).ToList(); ApplyFlowFilter(); if (selected != null) FlowGrid.SelectedItem = flows.FirstOrDefault(f => f.Id == selected);
-            RefreshNodes(); var dns = snapshot["dns"]!; DnsStats.Text = $"缓存 {N(dns, "entries")} 条 · 命中 {N(dns, "hits")} 次 · 上游请求 {N(dns, "upstreamQueries")} 次 · 合并 {N(dns, "coalesced")} 次 · 拦截 {N(dns, "blocked")} 次 · 错误 {N(dns, "errors")} 次";
+            RefreshNodes(); RefreshPoolState(); var dns = snapshot["dns"]!; DnsStats.Text = $"缓存 {N(dns, "entries")} 条 · 命中 {N(dns, "hits")} 次 · 上游请求 {N(dns, "upstreamQueries")} 次 · 合并 {N(dns, "coalesced")} 次 · 拦截 {N(dns, "blocked")} 次 · 错误 {N(dns, "errors")} 次";
             if (snapshot["dialing"] is { } dialing) DialingStats.Text = $"TCP 建连成功 {N(dialing, "succeeded")} 次 · 失败 {N(dialing, "failed")} 次 · 地址回退 {N(dialing, "fallbacks")} 次 · 路径记忆命中 {N(dialing, "remembered")} 次 · 已清理并发尝试 {N(dialing, "cancelledAttempts")} 次";
             EventGrid.ItemsSource = (snapshot["events"]?.AsArray() ?? []).Select(v => new { Time = DateTimeOffset.FromUnixTimeMilliseconds((long)N(v!, "time")).ToLocalTime().ToString("HH:mm:ss"), Level = S(v!, "level"), Message = S(v!, "message") }).ToList();
             DiagnosticSummary.Text = $"已处理 {N(snapshot, "accepted")} 条连接 · 失败 {N(snapshot, "failed")} 条";
@@ -188,11 +189,11 @@ public partial class MainWindow : Window
             EgressModeInput.SelectedIndex = S(profile, "egressMode") == "system" ? 1 : 0;
             PolicySummary.Text = S(profile, "finalPolicy"); PolicyDetail.Text = PolicySummary.Text == "DIRECT" ? "未命中规则的连接使用直连。" : "未命中规则的连接使用此策略。";
             FinalPolicy.ItemsSource = Policies(); FinalPolicy.SelectedItem = S(profile, "finalPolicy");
-            GroupGrid.ItemsSource = profile["groups"]!.AsArray().Select(v => new GroupRow(S(v!, "name"), S(v!, "kind") switch { "select" => "手动选择", "fallback" => "故障切换", _ => "优选低延迟" }, v!["members"]!.AsArray().Count + " 个成员")).ToList();
+            GroupGrid.ItemsSource = profile["groups"]!.AsArray().Select(v => new GroupRow(S(v!, "name"), v!["pool"] != null ? "自动线路池" : S(v!, "kind") switch { "select" => "手动选择", "fallback" => "故障切换", _ => "优选低延迟" }, v!["members"]!.AsArray().Count + " 个成员")).ToList();
             RuleGrid.ItemsSource = profile["rules"]!.AsArray().Select((v, i) => new RuleRow(i, ProfileWorkflow.RuleLabel(S(v!, "kind")), S(v!, "value"), S(v!, "policy"), v!["enabled"]?.GetValue<bool>() == false ? "已停用" : ProfileWorkflow.RoutingMode(profile) == "rules" ? "生效" : "待用")).ToList(); RefreshNodes();
         }
         finally { syncing = false; }
-        RefreshSubscriptionGrid(); SyncPrivacy(); SyncHome();
+        RefreshSubscriptionGrid(); SyncPrivacy(); SyncHome(); SyncPools();
     }
     private string[] Policies() => new[] { "DIRECT", "REJECT" }.Concat(profile["nodes"]!.AsArray().Select(v => S(v!, "name"))).Concat(profile["groups"]!.AsArray().Select(v => S(v!, "name"))).ToArray();
     private void RefreshNodes()
@@ -233,7 +234,7 @@ public partial class MainWindow : Window
     }
     private void FilterFlows(object sender, TextChangedEventArgs e) { if (FlowGrid != null) ApplyFlowFilter(); }
     private void ApplyFlowFilter() { string text = FlowSearch.Text; FlowGrid.ItemsSource = flows.Where(f => string.IsNullOrWhiteSpace(text) || $"{f.Destination} {f.Outbound} {f.Policy}".Contains(text, StringComparison.OrdinalIgnoreCase)).ToList(); }
-    private void FlowSelected(object sender, SelectionChangedEventArgs e) { if (FlowGrid.SelectedItem is FlowRow f) FlowDetail.Text = $"{f.Reason} → {f.Policy} → {f.Outbound}  ·  配置版本 {f.Generation}" + (string.IsNullOrEmpty(f.Error) ? "" : "\n" + f.Error); }
+    private void FlowSelected(object sender, SelectionChangedEventArgs e) { if (FlowGrid.SelectedItem is FlowRow f) FlowDetail.Text = $"{TrafficRoutes.ExplainReason(f.Reason)} → {f.Policy} → {f.Outbound}  ·  配置版本 {f.Generation}" + (string.IsNullOrEmpty(f.Error) ? "" : "\n" + f.Error) + AttemptDetails(f.Id); }
     private async void CloseSelectedFlow(object sender, RoutedEventArgs e) => await Safe(async () => { if (FlowGrid.SelectedItem is FlowRow f && client != null) await client.CallAsync("close_flow", new JsonObject { { "flowId", f.Id } }); });
     private async void AddNode(object sender, RoutedEventArgs e) => await EditNodeAsync(null);
     private async void EditNode(object sender, RoutedEventArgs e) { if (NodeGrid.SelectedItem is NodeRow row) await EditNodeAsync(row.Name); }
@@ -269,7 +270,7 @@ public partial class MainWindow : Window
     private async void EditGroup(object sender, RoutedEventArgs e) { if (GroupGrid.SelectedItem is GroupRow row) await EditGroupAsync(row.Name); }
     private async Task EditGroupAsync(string? name)
     {
-        var existing = profile["groups"]!.AsArray().FirstOrDefault(v => S(v!, "name") == name); var dialog = new GroupDialog(this, profile["nodes"]!.AsArray().Select(v => S(v!, "name")).Concat(new[] { "DIRECT", "REJECT" }), existing); if (dialog.ShowDialog() != true || dialog.Value == null) return;
+        var existing = profile["groups"]!.AsArray().FirstOrDefault(v => S(v!, "name") == name); if (existing?["pool"] != null) { await EditPoolAsync(name); return; } var dialog = new GroupDialog(this, profile["nodes"]!.AsArray().Select(v => S(v!, "name")).Concat(new[] { "DIRECT", "REJECT" }), existing); if (dialog.ShowDialog() != true || dialog.Value == null) return;
         await Safe(async () => { var candidate = profile.DeepClone().AsObject(); var groups = candidate["groups"]!.AsArray(); int index = groups.ToList().FindIndex(v => S(v!, "name") == name); if (index < 0) groups.Add(dialog.Value.DeepClone()); else { groups[index] = dialog.Value.DeepClone(); RenameReferences(candidate, name!, S(dialog.Value, "name")); } await SaveAsync(candidate); });
     }
     private async void RemoveGroup(object sender, RoutedEventArgs e) { if (GroupGrid.SelectedItem is GroupRow row) await RemoveOutboundAsync(row.Name, true); }

@@ -27,6 +27,7 @@ sources = {
     'live-proxy.json': root / '.cache/selected-normal-check.json',
     'live-direct-exceptions.json': root / '.cache/live-exceptions.json',
     'live-traffic-paths.json': root / '.cache/live-path-check.json',
+    'live-pool-recovery.json': root / '.cache/live-pool-check.json',
 }
 for name, source in sources.items():
     (output / name).unlink(missing_ok=True)
@@ -36,14 +37,14 @@ for name, source in sources.items():
             print(f'Skipping {name}: dependency lockfile changed.'); continue
         if name == 'nuget-advisories.json' and report.get('projectSha256') != hashlib.sha256((root / 'desktop/Harbor.csproj').read_bytes()).hexdigest():
             print(f'Skipping {name}: desktop dependencies changed.'); continue
-        key = 'engineSha256' if name in {'interop.json', 'native-tun.json', 'control-plane.json', 'connection-quality.json', 'test-suite.json', 'network-preservation.json', 'network-session-context.json', 'live-line-verification.json', 'live-proxy.json', 'live-direct-exceptions.json', 'live-traffic-paths.json'} else 'applicationSha256'
+        key = 'engineSha256' if name in {'interop.json', 'native-tun.json', 'control-plane.json', 'connection-quality.json', 'test-suite.json', 'network-preservation.json', 'network-session-context.json', 'live-line-verification.json', 'live-proxy.json', 'live-direct-exceptions.json', 'live-traffic-paths.json', 'live-pool-recovery.json'} else 'applicationSha256'
         binary = 'harbor-engine.exe' if key == 'engineSha256' else 'Harbor.dll'
         if name not in {'dependency-advisories.json', 'nuget-advisories.json'} and report.get(key) != hashlib.sha256((package / binary).read_bytes()).hexdigest():
             print(f'Skipping {name}: not recorded against this binary.')
             continue
         if name == 'test-suite.json' and report.get('applicationSha256') != hashlib.sha256((package / 'Harbor.dll').read_bytes()).hexdigest():
             print('Skipping test suite: desktop assembly changed.'); continue
-        if name in {'live-line-verification.json', 'live-proxy.json', 'live-direct-exceptions.json', 'live-traffic-paths.json'}:
+        if name in {'live-line-verification.json', 'live-proxy.json', 'live-direct-exceptions.json', 'live-traffic-paths.json', 'live-pool-recovery.json'}:
             # User configuration stays private even if a future diagnostic adds fields.
             summary = {key: report[key] for key in ['checkedAt', 'engineSha256', 'isolated', 'preflightPassed', 'passed', 'status', 'elapsedMs', 'verified', 'systemSettingsModified', 'uploaded', 'downloaded', 'failedFlows'] if key in report}
             summary['successfulHttpsRequests'] = sum(item.get('passed') is True and item.get('status') == 200 for item in report.get('requests', []))
@@ -52,11 +53,13 @@ for name, source in sources.items():
                 summary['successfulHttpsResponses'] = sum(item.get('passed') is True for item in report.get('requests', []))
             if name == 'live-traffic-paths.json':
                 summary.update({key: report[key] for key in ['savedDnsUsed', 'protectedWorkPath', 'savedWorkspaceModified'] if key in report})
+            if name == 'live-pool-recovery.json':
+                summary.update({key: report[key] for key in ['poolRecovered', 'monitoredHealthy', 'savedWorkspaceModified', 'savedDnsUsed', 'attemptsRecorded'] if key in report})
             (output / name).write_text(json.dumps(summary, indent=2), encoding='utf-8')
         else:
             shutil.copyfile(source, output / name)
 visual = root / '.cache/visual-final'
-for name in ['overview-1280.png', 'overview-980.png', 'overview-live.png', 'overview-live-980.png',
+for name in ['pools.png', 'pool-editor-980.png', 'pool-recovery-connection.png', 'pools-live-1280.png', 'pools-live-980.png', 'overview-1280.png', 'overview-980.png', 'overview-live.png', 'overview-live-980.png',
              'overview-configured.png', 'nodes-configured.png', 'nodes-batch-1280.png', 'nodes-batch-980.png', 'routing-configured.png', 'dns-configured.png',
              'overview-routing-1280.png', 'overview-routing-980.png', 'routing-modes-1280.png', 'routing-modes-980.png', 'routing-direct-980.png',
              'direct-exceptions-editor.png', 'direct-exceptions-editor-620.png', 'routing-exceptions-1280.png', 'routing-exceptions-980.png',

@@ -174,6 +174,7 @@ fn metadata_hiding_clears_existing_details_and_zero_retention_removes_finished_f
     let telemetry = Arc::new(Telemetry::default());
     telemetry.configure(&Privacy::default());
     let decision = harbor_engine::policy::Decision {
+        require_encrypted_proxy: false,
         policy: "sensitive-policy".into(),
         outbound: "sensitive-node".into(),
         reason: "private-domain.invalid".into(),

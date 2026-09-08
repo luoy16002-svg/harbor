@@ -2,7 +2,6 @@
 use crate::{
     engine::{Engine, relay},
     packet::{self, Endpoints},
-    transport,
 };
 use anyhow::{Context, Result};
 use smoltcp::{
@@ -274,7 +273,7 @@ async fn forward(engine: Arc<Engine>, mut local: DuplexStream, endpoints: Endpoi
             });
         }
     }
-    let decision = engine
+    let mut decision = engine
         .decision_for_source(
             &current,
             (
@@ -298,14 +297,14 @@ async fn forward(engine: Arc<Engine>, mut local: DuplexStream, endpoints: Endpoi
         &format!("{}:{}", endpoints.source, endpoints.source_port),
         &decision,
     );
-    match transport::connect(
-        &current.config,
-        &engine.resolver,
-        &decision.outbound,
-        &destination,
-        endpoints.destination_port,
-    )
-    .await
+    match engine
+        .connect_flow(
+            &current,
+            &mut decision,
+            (&destination, endpoints.destination_port),
+            &flow,
+        )
+        .await
     {
         Ok(mut upstream) => {
             if !prefix.is_empty() {

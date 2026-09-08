@@ -115,7 +115,7 @@ async fn socks(engine: Arc<Engine>, mut stream: TcpStream, peer: SocketAddr) -> 
         .try_acquire_owned()
         .context("Active flow limit reached")?;
     let config = engine.current.load_full();
-    let decision = engine
+    let mut decision = engine
         .decision_for_source(
             &config,
             (&host, port, "tcp"),
@@ -128,14 +128,9 @@ async fn socks(engine: Arc<Engine>, mut stream: TcpStream, peer: SocketAddr) -> 
     let mut flow = engine
         .telemetry
         .begin(&host, port, "SOCKS5", &peer.to_string(), &decision);
-    match transport::connect(
-        &config.config,
-        &engine.resolver,
-        &decision.outbound,
-        &host,
-        port,
-    )
-    .await
+    match engine
+        .connect_flow(&config, &mut decision, (&host, port), &flow)
+        .await
     {
         Ok(upstream) => {
             stream.write_all(&[5, 0, 0, 1, 0, 0, 0, 0, 0, 0]).await?;
@@ -277,7 +272,7 @@ async fn http(
         .try_acquire_owned()
         .context("Active flow limit reached")?;
     let config = engine.current.load_full();
-    let decision = engine
+    let mut decision = engine
         .decision_for_source(
             &config,
             (&host, port, "tcp"),
@@ -301,14 +296,9 @@ async fn http(
             "Blocked by Harbor routing policy.",
         ));
     }
-    let upstream = match transport::connect(
-        &config.config,
-        &engine.resolver,
-        &decision.outbound,
-        &host,
-        port,
-    )
-    .await
+    let upstream = match engine
+        .connect_flow(&config, &mut decision, (&host, port), &flow)
+        .await
     {
         Ok(s) => s,
         Err(error) => {
@@ -345,8 +335,13 @@ async fn http(
         flow,
         _permit,
     };
-    let token = engine.cancel.child_token();
-    engine.flow_cancel.lock().unwrap().insert(id, token.clone());
+    let token = engine
+        .flow_cancel
+        .lock()
+        .unwrap()
+        .entry(id)
+        .or_insert_with(|| engine.cancel.child_token())
+        .clone();
     let (mut sender, connection) =
         hyper::client::conn::http1::handshake(TokioIo::new(measured)).await?;
     let e = engine.clone();

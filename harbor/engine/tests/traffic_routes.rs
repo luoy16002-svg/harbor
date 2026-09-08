@@ -143,6 +143,7 @@ fn ordered_paths_override_modes_and_exceptions_without_weakening_global_blocks()
 fn protected_groups_filter_per_transport_and_preserve_fixed_and_unprotected_choices() {
     let mut config = fixture();
     config.groups.push(Group {
+        pool: None,
         name: "pool".into(),
         kind: GroupKind::Fallback,
         members: vec!["DIRECT".into(), "plain".into(), "tls".into(), "aead".into()],

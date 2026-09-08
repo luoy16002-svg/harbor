@@ -6,6 +6,8 @@ Harbor imports subscriptions, routes traffic through rules and proxy groups, and
 
 The engine connects as DNS answers arrive, interleaves IPv6 and IPv4 attempts, shares duplicate DNS work, and remembers recent successful TCP paths. A [local fault benchmark](harbor/docs/connection-quality.md) compares connection setup against the preceding release.
 
+[Automatic proxy pools](harbor/docs/automatic-pools.md) monitor HTTPS availability and recover failed connection setup using selected backup proxies. The desktop shows member health, recovery counts and actual outbound attempts.
+
 Subscriptions show provider usage and expiry when available. Updates include a change preview and cancellable downloads.
 
 Switch between rule routing, one default outbound, and direct routing. Preview path changes offline before selecting a mode; established connections keep their original route.
@@ -16,7 +18,7 @@ Keep a global proxy while sending selected games and video services directly. [D
 
 Configuration changes retain up to ten encrypted earlier versions. Review differences and restore a version from settings while disconnected; the configuration before restoration is kept for undo.
 
-**Status:** 0.12.0 preview. The desktop UI is currently in Chinese. TUN support is experimental; live system-wide capture and recovery have not been validated for this release.
+**Status:** 0.13.0 preview. The desktop UI is currently in Chinese. TUN support is experimental; live system-wide capture and recovery have not been validated for this release.
 
 ## Build
 

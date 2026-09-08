@@ -55,3 +55,7 @@ Subscription updates run only after a user action. A changed feed is previewed b
 Live TUN recovery and network switching remain unverified for this release. Harbor has no system-wide kill switch or WFP firewall.
 
 There is no analytics or advertising SDK. Network requests come from forwarding, DNS, configured health probes, HTTPS checks, and subscription updates. Proxy operators and endpoint software remain separate trust boundaries.
+
+## Automatic pool monitoring
+
+Automatic pools are opt-in and send bounded HTTPS HEAD requests through their selected members while the engine runs. Their URLs and trust settings are encrypted with the workspace; the check endpoint observes each request. Snapshots expose only categorized results, without check URLs or detailed errors. Member health samples and counters stay in memory. Setup-attempt names are hidden with other connection metadata, and recent outbound/recovery fields obey retention and history clearing. Pool exhaustion never adds a DIRECT fallback. See [automatic pools](automatic-pools.md).

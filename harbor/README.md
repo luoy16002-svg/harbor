@@ -1,6 +1,6 @@
 # Harbor
 
-A Windows proxy client with a Rust forwarding engine and a WPF desktop. This is the **0.12.0 preview**.
+A Windows proxy client with a Rust forwarding engine and a WPF desktop. This is the **0.13.0 preview**.
 
 ## Use
 
@@ -25,6 +25,7 @@ Upstream connections use a physical network adapter by default to avoid routing 
 - Saved routing modes: rules, one default outbound, or direct; live switching preserves established connections.
 - Domain and Windows process direct exceptions that also work with the global outbound; editable Genshin / miHoYo and Bilibili presets.
 - Visual application / website paths with fixed or grouped exits, optional encrypted-proxy requirements, and offline TCP/UDP/process checks.
+- Automatic HTTPS-monitored proxy pools with bounded setup recovery, member priorities, pause/resume, and actual-outbound history.
 - Automatic groups filter by TCP/UDP support and protection settings; path cards explain overlap and configured eligible members.
 - DoH / DoT, local domain lists, and connection privacy controls.
 - Streaming dual-stack TCP setup, shared concurrent DNS queries, and bounded in-memory path hints.
@@ -36,7 +37,9 @@ Upstream connections use a physical network adapter by default to avoid routing 
 
 On the proxies page, search or filter the list and choose the batch check action. Harbor checks the list captured at that moment, with at most two requests in flight. Cancellation closes those verification connections while preserving completed results and active proxy traffic. Starting or stopping the proxy cancels an active batch first.
 
-Sort by HTTPS elapsed time to put recent successful checks first, then select a proxy and use the existing set-as-outbound action. Harbor does not switch your outbound automatically. Each check sends one HTTPS HEAD request to `www.example.com` through the chosen proxy; measured time includes connection setup and the response, and does not measure download speed.
+Sort by HTTPS elapsed time to put recent successful checks first, then select a proxy and use the existing set-as-outbound action. This manual verification workflow does not switch your outbound. Each check sends one HTTPS HEAD request to `www.example.com` through the chosen proxy; measured time includes connection setup and the response, and does not measure download speed.
+
+Open the pools page to select primary and backup proxies, choose stable or low-latency selection, and enable periodic HTTPS checks. Set the pool as the default outbound or assign it to an application/website path. Failed connection setup can try up to three eligible members within one timeout; established sessions and application payloads are never replayed. The pool page shows real health and recovery counts. See [automatic pools](docs/automatic-pools.md) for setup, privacy, and limits.
 
 In subscription management, check for updates to review added, changed, removed, and retained proxies. Proxies still referenced by an outbound, rule, traffic path, or group remain available. Cancelling a download or declining its preview keeps the existing workspace. Connection controls remain available while downloading; disconnecting cancels the pending download first.
 

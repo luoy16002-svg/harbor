@@ -142,7 +142,7 @@ impl Harness {
         );
     }
 }
-async fn tcp_roundtrip(bind: &str) {
+async fn tcp_roundtrip(bind: &str, use_pool: bool) {
     let listener = TcpListener::bind(bind).await.unwrap();
     let target = listener.local_addr().unwrap();
     let server = tokio::spawn(async move {
@@ -154,6 +154,37 @@ async fn tcp_roundtrip(bind: &str) {
         stream.shutdown().await.unwrap();
     });
     let mut h = Harness::new().await;
+    let mut proxies = vec![];
+    if use_pool {
+        let mut nodes = vec![];
+        for (name, working) in [("primary", false), ("backup", true)] {
+            let proxy = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            nodes.push(serde_json::from_value(serde_json::json!({"name":name,"kind":"http","server":"127.0.0.1","port":proxy.local_addr().unwrap().port()})).unwrap());
+            proxies.push(tokio::spawn(async move {
+                let mut tasks = tokio::task::JoinSet::new();
+                loop { tokio::select! {
+                    result = proxy.accept() => {
+                        let (mut client, _) = result.unwrap();
+                        tasks.spawn(async move {
+                            let mut header = vec![];
+                            loop { let Ok(byte) = client.read_u8().await else { return; }; header.push(byte); if header.ends_with(b"\r\n\r\n") { break; } assert!(header.len() < 8192); }
+                            if !working { let _ = client.write_all(b"HTTP/1.1 407 Required\r\n\r\n").await; return; }
+                            let mut upstream = tokio::net::TcpStream::connect(target).await.unwrap();
+                            client.write_all(b"HTTP/1.1 200 Established\r\n\r\n").await.unwrap();
+                            let _ = tokio::io::copy_bidirectional(&mut client, &mut upstream).await;
+                        });
+                    },
+                    _ = tasks.join_next(), if !tasks.is_empty() => {},
+                } }
+            }));
+        }
+        let mut config = h.engine.current.load().config.clone();
+        config.nodes = nodes;
+        config.final_policy = "pool".into();
+        config.routing_mode = harbor_engine::config::RoutingMode::Global;
+        config.groups = vec![serde_json::from_value(serde_json::json!({"name":"pool","kind":"fallback","members":["primary","backup"],"pool":{"monitor":false,"attemptTimeoutMs":500}})).unwrap()];
+        h.engine.configure(config).unwrap();
+    }
     let mut socket = tcp::Socket::new(
         tcp::SocketBuffer::new(vec![0; 32768]),
         tcp::SocketBuffer::new(vec![0; 32768]),
@@ -200,16 +231,29 @@ async fn tcp_roundtrip(bind: &str) {
         }
     }
     assert_eq!(payload, received);
+    if use_pool {
+        let snapshot = h.engine.snapshot();
+        assert_eq!(snapshot["flows"][0]["outbound"], "backup");
+        assert_eq!(snapshot["flows"][0]["attempts"][0]["state"], "failed");
+        assert_eq!(snapshot["pools"][0]["stats"]["recovered"], 1);
+    }
     server.await.unwrap();
     h.finish().await;
+    for proxy in proxies {
+        proxy.abort();
+    }
 }
 #[tokio::test]
 async fn ipv4_tcp_large_stream_and_half_close() {
-    tcp_roundtrip("127.0.0.1:0").await;
+    tcp_roundtrip("127.0.0.1:0", false).await;
 }
 #[tokio::test]
 async fn ipv6_tcp_large_stream_and_half_close() {
-    tcp_roundtrip("[::1]:0").await;
+    tcp_roundtrip("[::1]:0", false).await;
+}
+#[tokio::test]
+async fn tun_tcp_pool_recovers_before_forwarding_buffered_payload() {
+    tcp_roundtrip("127.0.0.1:0", true).await;
 }
 
 #[tokio::test]

@@ -32,8 +32,17 @@ pub struct Flow {
     pub downloaded: u64,
     pub state: String,
     pub error: Option<String>,
+    pub attempts: Vec<ConnectAttempt>,
     #[serde(skip)]
     ended_at: Option<u64>,
+}
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectAttempt {
+    pub outbound: String,
+    pub state: String,
+    pub elapsed_ms: u64,
+    pub error_category: Option<String>,
 }
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -112,6 +121,7 @@ impl Telemetry {
             downloaded: 0,
             state: "connecting".into(),
             error: None,
+            attempts: vec![],
             ended_at: None,
         };
         if self.private.load(Ordering::SeqCst) {
@@ -161,6 +171,10 @@ fn redact(flow: &mut Flow) {
         error.zeroize();
     }
     flow.error = None;
+    for attempt in &mut flow.attempts {
+        attempt.outbound.zeroize();
+    }
+    flow.attempts.clear();
 }
 pub struct FlowGuard {
     pub id: u64,
@@ -169,6 +183,38 @@ pub struct FlowGuard {
     finished: bool,
 }
 impl FlowGuard {
+    pub fn attempt(&self, outbound: &str) {
+        self.update(|f| {
+            if f.attempts.len() < 3 {
+                f.attempts.push(ConnectAttempt {
+                    outbound: outbound.into(),
+                    state: "connecting".into(),
+                    elapsed_ms: 0,
+                    error_category: None,
+                });
+            }
+        });
+    }
+    pub fn attempt_finished(&self, elapsed_ms: u64, category: Option<&str>) {
+        self.update(|f| {
+            if let Some(a) = f.attempts.last_mut() {
+                a.elapsed_ms = elapsed_ms;
+                a.state = if category.is_some() {
+                    "failed"
+                } else {
+                    "connected"
+                }
+                .into();
+                a.error_category = category.map(str::to_owned);
+            }
+        });
+    }
+    pub fn routed(&self, decision: &Decision) {
+        self.update(|f| {
+            f.outbound = decision.outbound.clone();
+            f.reason = decision.reason.clone();
+        });
+    }
     pub fn active(&self) {
         self.update(|f| f.state = "active".into());
     }

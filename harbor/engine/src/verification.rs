@@ -37,10 +37,36 @@ pub async fn preflight(config: Config) -> Result<Value> {
     );
     resolver.configure(config.dns_servers.clone(), config.dns_tls.clone());
     resolver.set_privacy(&config.privacy);
-    let addresses = tokio::time::timeout(
-        Duration::from_secs(15),
-        resolver.lookup_first(&node.server, node.port),
-    )
+    let decision = crate::policy::Decision {
+        policy: config.final_policy.clone(),
+        outbound: outbound.clone(),
+        reason: String::new(),
+        rule_index: None,
+        generation: 0,
+        require_encrypted_proxy: config.privacy.require_encrypted_proxy,
+    };
+    let candidates = selector.retry_candidates(&config, &decision);
+    let (outbound, addresses) = tokio::time::timeout(Duration::from_secs(15), async {
+        let mut last = anyhow::anyhow!("No eligible proxy address resolved");
+        for name in candidates {
+            let candidate = config
+                .nodes
+                .iter()
+                .find(|n| n.name == name)
+                .context("Missing preflight candidate")?;
+            match tokio::time::timeout(
+                Duration::from_secs(5),
+                resolver.lookup_first(&candidate.server, candidate.port),
+            )
+            .await
+            {
+                Ok(Ok(addresses)) => return Ok((name, addresses)),
+                Ok(Err(error)) => last = error,
+                Err(_) => last = anyhow::anyhow!("Proxy server DNS preflight timed out"),
+            }
+        }
+        Err(last)
+    })
     .await
     .context("Proxy server DNS preflight timed out")??;
     Ok(
@@ -60,37 +86,104 @@ async fn verify_target(
         config.nodes.iter().any(|node| node.name == outbound),
         "Choose a concrete proxy node"
     );
-    let filter = privacy::DomainFilter::new(&config.privacy);
-    ensure!(
-        !filter.blocked(host),
-        "Verification target is blocked by domain rules"
-    );
-    if let Some(reason) = privacy::rejection(config, host, "tcp", outbound) {
-        anyhow::bail!("Verification blocked by privacy settings: {reason}");
-    }
     let resolver = Resolver::new(config.dns_servers.clone(), egress);
     resolver.configure(config.dns_servers.clone(), config.dns_tls.clone());
     resolver.set_privacy(&config.privacy);
+    let target = crate::pools::CheckTarget {
+        host: host.into(),
+        port: 443,
+        authority: host.into(),
+        path: "/".into(),
+    };
+    let result = check_https(config, &resolver, outbound, &target, ca, 20000)
+        .await
+        .map_err(|failure| failure.detail)?;
+    Ok(
+        json!({"outbound":outbound,"target":host,"protocol":"HTTPS","status":result.0,"elapsedMs":result.1 as u64,"verified":"proxy-tunnel + destination TLS + HTTP response","udpVerified":false}),
+    )
+}
+
+pub struct CheckFailure {
+    pub category: &'static str,
+    pub detail: anyhow::Error,
+}
+pub async fn check_https(
+    config: &Config,
+    resolver: &Resolver,
+    outbound: &str,
+    target: &crate::pools::CheckTarget,
+    ca: &str,
+    timeout_ms: u64,
+) -> Result<(u16, f64), CheckFailure> {
+    if privacy::DomainFilter::new(&config.privacy).blocked(&target.host)
+        || privacy::rejection(config, &target.host, "tcp", outbound).is_some()
+    {
+        return Err(CheckFailure {
+            category: "policy",
+            detail: anyhow::anyhow!("HTTPS check blocked by privacy settings"),
+        });
+    }
     let started = Instant::now();
-    let mut stage = "proxy connection and DNS";
-    tokio::time::timeout(Duration::from_secs(20), async {
-        let tunnel = transport::connect(config, &resolver, outbound, host, 443).await.context("Proxy connection failed")?;
-        stage = "destination TLS handshake";
-        let mut stream = transport::tls_named(tunnel, host, ca).await.context("Destination TLS verification failed")?;
-        stage = "HTTPS response";
-        stream.write_all(format!("HEAD / HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n").as_bytes()).await?;
+    let mut stage = "proxy";
+    let result = tokio::time::timeout(Duration::from_millis(timeout_ms), async {
+        let tunnel = transport::connect(config, resolver, outbound, &target.host, target.port)
+            .await
+            .context("Proxy connection failed")?;
+        stage = "tls";
+        let mut stream = transport::tls_named(tunnel, &target.host, ca)
+            .await
+            .context("Destination TLS verification failed")?;
+        stage = "http";
+        stream
+            .write_all(
+                format!(
+                    "HEAD {} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n\r\n",
+                    target.path, target.authority
+                )
+                .as_bytes(),
+            )
+            .await?;
         let mut header = Vec::new();
         while !header.ends_with(b"\r\n\r\n") {
-            ensure!(header.len() < 8192, "Verification response header exceeds 8 KiB");
-            header.push(stream.read_u8().await.context("Incomplete HTTPS response")?);
+            ensure!(
+                header.len() < 8192,
+                "Verification response header exceeds 8 KiB"
+            );
+            header.push(
+                stream
+                    .read_u8()
+                    .await
+                    .context("Incomplete HTTPS response")?,
+            );
         }
-        let first = std::str::from_utf8(&header)?.lines().next().unwrap_or_default();
+        let first = std::str::from_utf8(&header)?
+            .lines()
+            .next()
+            .unwrap_or_default();
         let mut words = first.split_whitespace();
-        ensure!(matches!(words.next(), Some("HTTP/1.1" | "HTTP/1.0")), "Invalid HTTPS response");
+        ensure!(
+            matches!(words.next(), Some("HTTP/1.1" | "HTTP/1.0")),
+            "Invalid HTTPS response"
+        );
         let status: u16 = words.next().context("Missing HTTP status")?.parse()?;
-        ensure!((200..400).contains(&status), "Verification destination returned HTTP {status}");
-        Ok(json!({"outbound":outbound,"target":host,"protocol":"HTTPS","status":status,"elapsedMs":started.elapsed().as_millis(),"verified":"proxy-tunnel + destination TLS + HTTP response","udpVerified":false}))
-    }).await.with_context(|| format!("Line verification timed out during {stage} (20 seconds)"))?
+        ensure!(
+            (200..400).contains(&status),
+            "Verification destination returned HTTP {status}"
+        );
+        Ok((status, started.elapsed().as_secs_f64() * 1000.0))
+    })
+    .await;
+    match result {
+        Ok(Ok(value)) => Ok(value),
+        Ok(Err(detail)) => Err(CheckFailure {
+            category: stage,
+            detail,
+        }),
+        Err(_) => Err(CheckFailure {
+            category: "timeout",
+            detail: anyhow::anyhow!("HTTPS check timed out during {stage}"),
+        }),
+    }
 }
 
 #[cfg(test)]

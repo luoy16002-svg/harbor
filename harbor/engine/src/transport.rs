@@ -19,6 +19,33 @@ pub trait Stream: AsyncRead + AsyncWrite + Unpin + Send {}
 impl<T: AsyncRead + AsyncWrite + Unpin + Send> Stream for T {}
 pub type BoxStream = Box<dyn Stream>;
 
+#[derive(Debug)]
+pub struct UpstreamFailure(String);
+impl std::fmt::Display for UpstreamFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+impl std::error::Error for UpstreamFailure {}
+fn upstream_failure(error: anyhow::Error) -> anyhow::Error {
+    // Preserve the diagnostics used to distinguish DNS, TLS and authentication.
+    let description = error.to_string();
+    error.context(UpstreamFailure(description))
+}
+
+pub fn validate_ca(pem: &str) -> Result<()> {
+    custom_roots(pem).map(|_| ())
+}
+fn custom_roots(pem: &str) -> Result<RootCertStore> {
+    use rustls::pki_types::pem::PemObject;
+    let mut roots = RootCertStore::empty();
+    for cert in rustls::pki_types::CertificateDer::pem_slice_iter(pem.as_bytes()) {
+        roots.add(cert?).context("Invalid custom CA certificate")?;
+    }
+    ensure!(!roots.is_empty(), "Custom CA contains no certificate");
+    Ok(roots)
+}
+
 pub fn supports(node: &Node, protocol: &str) -> bool {
     protocol == "tcp"
         || (protocol == "udp" && !matches!(node.kind, NodeKind::Http | NodeKind::Https))
@@ -152,12 +179,7 @@ pub async fn tls_named(stream: BoxStream, name: &str, ca_pem: &str) -> Result<Bo
     let config = if ca_pem.is_empty() {
         tls_config()?
     } else {
-        let mut roots = RootCertStore::empty();
-        use rustls::pki_types::pem::PemObject;
-        for cert in rustls::pki_types::CertificateDer::pem_slice_iter(ca_pem.as_bytes()) {
-            roots.add(cert?).context("Invalid custom CA certificate")?;
-        }
-        ensure!(!roots.is_empty(), "Custom CA contains no certificate");
+        let roots = custom_roots(ca_pem)?;
         Arc::new(
             ClientConfig::builder()
                 .with_root_certificates(roots)
@@ -244,7 +266,7 @@ pub async fn connect(
             .iter()
             .find(|n| n.name == outbound)
             .context("Outbound no longer exists in this configuration")?;
-        let mut stream = wrapped(resolver, node).await?;
+        let mut stream = wrapped(resolver, node).await.map_err(upstream_failure)?;
         match node.kind {
             NodeKind::Http | NodeKind::Https => {
                 let authority = if host.contains(':') {
@@ -281,6 +303,11 @@ pub async fn connect(
                     .next()
                     .unwrap_or_default();
                 let code = first.split_whitespace().nth(1).unwrap_or_default();
+                if code == "407" {
+                    return Err(upstream_failure(anyhow::anyhow!(
+                        "HTTP proxy authentication rejected (407)"
+                    )));
+                }
                 ensure!(
                     first.starts_with("HTTP/1.") && code == "200",
                     "HTTP proxy refused CONNECT ({code})"
@@ -288,7 +315,9 @@ pub async fn connect(
                 Ok(stream)
             }
             NodeKind::Socks5 => {
-                socks_handshake(&mut stream, node).await?;
+                socks_handshake(&mut stream, node)
+                    .await
+                    .map_err(upstream_failure)?;
                 socks_command(&mut stream, 1, host, port).await?;
                 Ok(stream)
             }

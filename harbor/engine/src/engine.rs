@@ -23,7 +23,7 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 
-struct FlowRegistration {
+pub(crate) struct FlowRegistration {
     engine: std::sync::Weak<Engine>,
     id: u64,
 }
@@ -35,6 +35,41 @@ impl Drop for FlowRegistration {
     }
 }
 
+struct RegisteredStream {
+    inner: transport::BoxStream,
+    _registration: FlowRegistration,
+}
+impl AsyncRead for RegisteredStream {
+    fn poll_read(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        buf: &mut tokio::io::ReadBuf<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        std::pin::Pin::new(&mut self.inner).poll_read(cx, buf)
+    }
+}
+impl AsyncWrite for RegisteredStream {
+    fn poll_write(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        buf: &[u8],
+    ) -> std::task::Poll<std::io::Result<usize>> {
+        std::pin::Pin::new(&mut self.inner).poll_write(cx, buf)
+    }
+    fn poll_flush(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        std::pin::Pin::new(&mut self.inner).poll_flush(cx)
+    }
+    fn poll_shutdown(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        std::pin::Pin::new(&mut self.inner).poll_shutdown(cx)
+    }
+}
+
 pub struct RuntimeConfig {
     pub config: Config,
     pub generation: u64,
@@ -43,6 +78,8 @@ pub struct RuntimeConfig {
 pub struct Engine {
     pub current: ArcSwap<RuntimeConfig>,
     probe_lock: tokio::sync::Mutex<()>,
+    pub pool_epoch: AtomicU64,
+    pool_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
     pub selector: Mutex<Selector>,
     pub telemetry: Arc<Telemetry>,
     pub resolver: Arc<Resolver>,
@@ -56,6 +93,134 @@ pub struct Engine {
     pub tun: Mutex<Option<crate::native_tun::TunHandle>>,
 }
 impl Engine {
+    /// Tries only pool members and only before application payload is forwarded.
+    pub async fn connect_flow(
+        self: &Arc<Self>,
+        snapshot: &RuntimeConfig,
+        decision: &mut Decision,
+        target: (&str, u16),
+        flow: &FlowGuard,
+    ) -> Result<transport::BoxStream> {
+        ensure!(decision.outbound != "REJECT", "Blocked by routing policy");
+        let config = &snapshot.config;
+        let settings = config
+            .groups
+            .iter()
+            .find(|g| g.name == decision.policy)
+            .and_then(|g| g.pool.as_ref());
+        let candidates = self
+            .selector
+            .lock()
+            .unwrap()
+            .retry_candidates(config, decision);
+        let token = self.cancel.child_token();
+        self.flow_cancel
+            .lock()
+            .unwrap()
+            .insert(flow.id, token.clone());
+        let registration = FlowRegistration {
+            engine: Arc::downgrade(self),
+            id: flow.id,
+        };
+        let deadline =
+            tokio::time::Instant::now() + Duration::from_millis(config.connect_timeout_ms);
+        let mut last = anyhow::anyhow!("Pool connection budget exhausted");
+        for (index, candidate) in candidates.into_iter().enumerate() {
+            if token.is_cancelled() {
+                anyhow::bail!("Connection cancelled");
+            }
+            let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+            if remaining.is_zero() {
+                break;
+            }
+            let budget = settings.map_or(remaining, |s| {
+                remaining.min(Duration::from_millis(s.attempt_timeout_ms))
+            });
+            flow.attempt(&candidate);
+            let started = Instant::now();
+            let attempt = tokio::time::timeout(
+                budget,
+                transport::connect(config, &self.resolver, &candidate, target.0, target.1),
+            );
+            let result = tokio::select! { biased;
+                _ = token.cancelled() => { flow.attempt_finished(started.elapsed().as_millis() as u64, Some("cancelled")); anyhow::bail!("Connection cancelled"); },
+                result = attempt => result.unwrap_or_else(|_| Err(anyhow::anyhow!("Connection attempt timed out"))),
+            };
+            let hard_failure = result
+                .as_ref()
+                .is_err_and(|error| error.is::<transport::UpstreamFailure>());
+            flow.attempt_finished(
+                started.elapsed().as_millis() as u64,
+                result
+                    .as_ref()
+                    .err()
+                    .map(|_| if hard_failure { "proxy" } else { "connect" }),
+            );
+            if settings.is_some() {
+                let mut selector = self.selector.lock().unwrap();
+                if self.current.load().generation == snapshot.generation {
+                    if let Some(h) = selector
+                        .pool_health
+                        .get_mut(&(decision.policy.clone(), candidate.clone()))
+                    {
+                        if hard_failure {
+                            h.cooldown = Some(Instant::now() + Duration::from_secs(15));
+                        } else if result.is_ok() {
+                            h.cooldown = None;
+                        }
+                    }
+                    if let Some(stats) = selector.pool_stats.get_mut(&decision.policy) {
+                        if index == 0 {
+                            stats.connections += 1;
+                        }
+                        stats.attempts += 1;
+                        if result.is_ok() {
+                            if index > 0 {
+                                stats.recovered += 1;
+                                if !config.privacy.hide_metadata && config.privacy.history_secs > 0
+                                {
+                                    stats.last_recovery_at = Some(crate::telemetry::now_ms());
+                                }
+                            }
+                            if !config.privacy.hide_metadata && config.privacy.history_secs > 0 {
+                                stats.last_outbound = Some(candidate.clone());
+                                stats.last_outbound_at = Some(crate::telemetry::now_ms());
+                            }
+                        }
+                    }
+                    if result.is_ok() {
+                        selector.remember_pool_outbound(decision, &candidate);
+                    }
+                }
+            }
+            match result {
+                Ok(inner) => {
+                    decision.outbound = candidate;
+                    if index > 0 {
+                        decision.reason += &format!(
+                            " · Pool: recovered on attempt {} before forwarding",
+                            index + 1
+                        );
+                    }
+                    flow.routed(decision);
+                    return Ok(Box::new(RegisteredStream {
+                        inner,
+                        _registration: registration,
+                    }));
+                }
+                Err(error) => last = error,
+            }
+        }
+        if settings.is_some() {
+            let mut selector = self.selector.lock().unwrap();
+            if self.current.load().generation == snapshot.generation
+                && let Some(stats) = selector.pool_stats.get_mut(&decision.policy)
+            {
+                stats.failed += 1;
+            }
+        }
+        Err(last)
+    }
     pub async fn start(config: Config) -> Result<Arc<Self>> {
         config.validate()?;
         let listener = TcpListener::bind(config.listen)
@@ -76,6 +241,8 @@ impl Engine {
         let capacity = Arc::new(tokio::sync::Semaphore::new(config.max_connections));
         let engine = Arc::new(Self {
             probe_lock: tokio::sync::Mutex::new(()),
+            pool_epoch: AtomicU64::new(0),
+            pool_task: Mutex::new(None),
             current: ArcSwap::from_pointee(RuntimeConfig {
                 filter: crate::privacy::DomainFilter::new(&config.privacy),
                 config,
@@ -123,6 +290,7 @@ impl Engine {
                             let previous6 = e.egress.ipv6.swap(v6, Ordering::Relaxed);
                             if previous4 != v4 || previous6 != v6 {
                                 e.resolver.clear();
+                                e.invalidate_pools();
                                 e.telemetry.event("info", "Physical network changed. New connections use the updated interface.");
                             }
                         }
@@ -152,10 +320,15 @@ impl Engine {
         tokio::spawn(async move {
             e.probe_loop().await;
         });
+        let e = engine.clone();
+        *engine.pool_task.lock().unwrap() = Some(tokio::spawn(async move {
+            crate::pools::monitor(e).await;
+        }));
         Ok(engine)
     }
     pub fn configure(&self, config: Config) -> Result<u64> {
         config.validate()?;
+        let mut selector = self.selector.lock().unwrap();
         let old = self.current.load_full();
         ensure!(
             config.privacy.routing_eq(&old.config.privacy),
@@ -169,7 +342,7 @@ impl Engine {
                 && config.max_connections == old.config.max_connections,
             "Listener, egress, TUN and connection-limit changes require stopping the engine first"
         );
-        self.selector.lock().unwrap().reconcile(&config);
+        selector.reconcile(&config);
         if config.dns_servers != old.config.dns_servers || config.dns_tls != old.config.dns_tls {
             self.resolver
                 .configure(config.dns_servers.clone(), config.dns_tls.clone());
@@ -184,6 +357,8 @@ impl Engine {
             config,
             generation,
         }));
+        self.pool_epoch.fetch_add(1, Ordering::SeqCst);
+        drop(selector);
         self.telemetry.event(
             "info",
             format!(
@@ -248,17 +423,25 @@ impl Engine {
             }
         }
         self.cancel.cancel();
+        let pool_task = self.pool_task.lock().unwrap().take();
+        if let Some(task) = pool_task {
+            let _ = task.await;
+        }
         Ok(())
     }
     pub fn snapshot(&self) -> Value {
         self.telemetry.prune();
         let current = self.current.load();
+        let mut selector = self.selector.lock().unwrap();
+        for stats in selector.pool_stats.values_mut() {
+            stats.prune(&current.config.privacy);
+        }
         let flows = self.telemetry.flows.lock().unwrap();
         let active = flows
             .iter()
             .filter(|f| f.state == "active" || f.state == "connecting")
             .count();
-        json!({"running":!self.cancel.is_cancelled(),"version":env!("CARGO_PKG_VERSION"),"generation":current.generation,"routingMode":current.config.routing_mode,"uptimeSecs":self.started.elapsed().as_secs(),"listen":current.config.listen,"dnsListen":current.config.dns_listen,"tun":current.config.tun,"activeConnections":active,"accepted":self.telemetry.accepted.load(Ordering::Relaxed),"failed":self.telemetry.failed.load(Ordering::Relaxed),"uploaded":self.telemetry.uploaded.load(Ordering::Relaxed),"downloaded":self.telemetry.downloaded.load(Ordering::Relaxed),"flows":flows.iter().take(500).collect::<Vec<_>>(),"events":self.telemetry.events.lock().unwrap().iter().take(100).collect::<Vec<_>>(),"nodes":self.selector.lock().unwrap().health.values().collect::<Vec<_>>(),"dns":self.resolver.stats(),"dialing":self.resolver.dial_stats()})
+        json!({"running":!self.cancel.is_cancelled(),"version":env!("CARGO_PKG_VERSION"),"generation":current.generation,"routingMode":current.config.routing_mode,"uptimeSecs":self.started.elapsed().as_secs(),"listen":current.config.listen,"dnsListen":current.config.dns_listen,"tun":current.config.tun,"activeConnections":active,"accepted":self.telemetry.accepted.load(Ordering::Relaxed),"failed":self.telemetry.failed.load(Ordering::Relaxed),"uploaded":self.telemetry.uploaded.load(Ordering::Relaxed),"downloaded":self.telemetry.downloaded.load(Ordering::Relaxed),"flows":flows.iter().take(500).collect::<Vec<_>>(),"events":self.telemetry.events.lock().unwrap().iter().take(100).collect::<Vec<_>>(),"nodes":selector.health.values().collect::<Vec<_>>(),"pools":selector.pools_snapshot(&current.config),"dns":self.resolver.stats(),"dialing":self.resolver.dial_stats()})
     }
     pub async fn probe(&self) -> Value {
         let _probe = self.probe_lock.lock().await;
@@ -457,12 +640,13 @@ where
     B: AsyncRead + AsyncWrite + Unpin + Send,
 {
     flow.active();
-    let token = engine.cancel.child_token();
-    engine
+    let token = engine
         .flow_cancel
         .lock()
         .unwrap()
-        .insert(flow.id, token.clone());
+        .entry(flow.id)
+        .or_insert_with(|| engine.cancel.child_token())
+        .clone();
     let _registration = FlowRegistration {
         engine: Arc::downgrade(&engine),
         id: flow.id,
