@@ -1,6 +1,6 @@
 # Features
 
-Implemented features and the checks completed for 0.11.0 are listed separately from unverified behavior.
+Implemented features and the checks completed for 0.12.0 are listed separately from unverified behavior.
 
 | Feature | Implementation | Verification |
 | --- | --- | --- |
@@ -9,10 +9,10 @@ Implemented features and the checks completed for 0.11.0 are listed separately f
 | Imports and subscriptions | Cancellable HTTPS updates, a preview of added/changed/removed/retained proxies, ownership tracking, and atomic saves | Parser, body/header cancellation, real preview acceptance/cancellation, empty-feed rejection, stale-response rejection, and failed-save rollback |
 | Subscription statistics | Optional provider upload/download/total/expiry data, timestamps, and an explicit unavailable state | Header bounds and parsing, old-workspace compatibility, DPAPI persistence, 304 replies, and identical-body metadata refresh |
 | Configuration history | Ten encrypted predecessors, change previews, stopped-only restoration, undo through history, and explicit clearing | Atomic persistence failures, retention, corruption, stale reviews, real restore/cancel buttons, download cancellation, and HTTP validator reset |
-| Proxy selection and rules | Live configuration updates, ordered groups, rule editing, and offline route comparisons | Policy tests, invalid-update rollback, and established-stream preservation |
+| Proxy selection and rules | Live configuration updates, ordered groups, rule editing, and offline route comparisons; automatic members filtered by transport support and path/global protections | Policy tests, independent Xray TCP/UDP automatic-group payloads, invalid-update rollback, and established-stream preservation |
 | Routing modes | Rules, a single default outbound, or direct; saved selections and offline mode comparison | Legacy defaults, group selection, privacy precedence, real TCP/UDP transitions, and failed-save rollback in the desktop |
 | Direct exceptions | Domain suffixes and read-only Windows socket process ownership before the global outbound or ordinary rules; game/video presets | Real IPv4/IPv6 ownership, SOCKS5/CONNECT/UDP forwarding, ambiguous-owner fallback, privacy precedence, preset editor and failed-save rollback; live game/TUN sessions unverified |
-| Visual traffic paths | Ordered application / domain cards, direct/fixed/group/default exits, required encrypted proxies and TCP/UDP/process rehearsal | Per-transport group eligibility, privacy precedence, real Windows process forwarding, path-only subscription references, history, editor and card actions, and failed-save rollback |
+| Visual traffic paths | Ordered application / domain cards, direct/fixed/group/default exits, required encrypted proxies, overlap advice, configured member counts and TCP/UDP/process rehearsal | Per-transport group eligibility, privacy precedence, real Windows process forwarding, path-only subscription references, history, editor and card actions, preserved focus on unchanged refresh and failed-save rollback |
 | Local proxy | HTTP and SOCKS5 listeners, TCP and persistent UDP sessions | Independent interop and loopback traffic |
 | System proxy | WinINET settings, encrypted recovery journal, and an independent recovery process | Recovery state machine tested with simulated storage; live writes were not tested for this release |
 | Upstream routing | Physical adapter selection or system routing; updates for new connections after network changes | Adapter selection checks and limited HTTPS forwarding with an existing TUN active |

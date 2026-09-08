@@ -57,7 +57,7 @@ internal static class TrafficRoutes
         "DIRECT" => "直连 · 原生网络", "REJECT" => "拦截",
         _ => policy
     };
-    internal static string OutboundFacts(JsonObject profile, string policy)
+    internal static string OutboundFacts(JsonObject profile, string policy, bool requireEncrypted = false)
     {
         if (policy == "DIRECT") return "使用原生出口 IP；网站 HTTPS 由应用负责。";
         if (policy == "REJECT") return "连接被拦截，不使用其他出口。";
@@ -74,13 +74,42 @@ internal static class TrafficRoutes
         string member = group?["selected"]?.GetValue<string>() ?? group?["members"]?[0]?.GetValue<string>() ?? "";
         string MemberFacts() => member is "DIRECT" or "REJECT" || (profile["nodes"] as JsonArray ?? []).Any(v => v?["name"]?.GetValue<string>() == member)
             ? OutboundFacts(profile, member) : "成员配置待检查";
+        int Eligible(string protocol) => (group?["members"] as JsonArray ?? []).Count(v =>
+        {
+            string name = v?.GetValue<string>() ?? "";
+            if (name == "DIRECT") return !requireEncrypted && profile["privacy"]?["blockDirect"]?.GetValue<bool>() != true;
+            var candidate = (profile["nodes"] as JsonArray ?? []).FirstOrDefault(n => n?["name"]?.GetValue<string>() == name);
+            return candidate != null && (protocol == "tcp" || candidate["kind"]?.GetValue<string>() is not ("http" or "https")) &&
+                (!(requireEncrypted || profile["privacy"]?["requireEncryptedProxy"]?.GetValue<bool>() == true) || Encrypted(candidate, protocol));
+        });
+        string Counts() => $" 非回环目标按配置可用：TCP {Eligible("tcp")} / UDP {Eligible("udp")} 个成员，未计入实时健康状态。";
         return group?["kind"]?.GetValue<string>() switch
         {
             "select" => "固定成员 · " + member + " · " + MemberFacts(),
-            "fallback" => "故障切换 · 尽量保留当前出口，连续探测失败后切换新连接。",
-            "latency" => "优选低延迟 · 达到切换门槛后，新连接使用新出口。",
+            "fallback" => "故障切换 · 保留当前可用出口，连续探测失败后切换新连接。" + Counts(),
+            "latency" => "优选低延迟 · 达到切换门槛后，新连接使用新出口。" + Counts(),
             _ => "出口信息未知"
         };
+    }
+    internal static string OverlapNotice(IReadOnlyList<TrafficRouteSetting> routes, int index)
+    {
+        var route = routes[index]; if (!route.Enabled || index == 0) return "";
+        var earlier = routes.Take(index).Where(v => v.Enabled).ToArray();
+        bool Within(string child, string parent)
+        {
+            child = child.TrimEnd('.'); parent = parent.TrimEnd('.');
+            return child.Equals(parent, StringComparison.OrdinalIgnoreCase) || child.EndsWith("." + parent, StringComparison.OrdinalIgnoreCase);
+        }
+        bool DomainOverlap(TrafficRouteSetting other) => route.Domains.Any(d => other.Domains.Any(e => Within(d, e) || Within(e, d)));
+        bool ProcessOverlap(TrafficRouteSetting other) => route.Processes.Any(p => other.Processes.Contains(p, StringComparer.OrdinalIgnoreCase));
+        var overlaps = earlier.Where(v => DomainOverlap(v) || ProcessOverlap(v)).ToArray();
+        bool cross = earlier.Any(v => (v.Processes.Length > 0 && route.Domains.Length > 0) || (v.Domains.Length > 0 && route.Processes.Length > 0));
+        if (overlaps.Length == 0) return cross ? "优先级：应用与网站条件可能同时命中，同一请求使用更靠前的路径。" : "";
+        bool covered = route.Domains.All(d => earlier.Any(v => v.Domains.Any(e => Within(d, e)))) &&
+            route.Processes.All(p => earlier.Any(v => v.Processes.Contains(p, StringComparer.OrdinalIgnoreCase)));
+        string sources = string.Join("、", overlaps.Take(3).Select(v => v.Name)) + (overlaps.Length > 3 ? " …" : "");
+        return (covered ? "优先级：全部条件已被前面的启用路径覆盖，本路径不会命中。" : "优先级：部分条件与前面路径重叠，重叠请求先使用前面的路径。") +
+            "前置路径：" + sources + "。" + (!covered && cross ? "应用与网站条件同时命中时，也按顺序处理。" : "");
     }
     internal static string DnsFacts(JsonObject profile) => (profile["dnsTls"] as JsonArray)?.Count > 0
         ? "Harbor DNS 已配置加密，失败不回退明文；查询直达所选 DNS 服务。"
@@ -88,5 +117,10 @@ internal static class TrafficRoutes
     internal static string ExplainReason(string reason) => reason
         .Replace("PATH · ", "路径 · ", StringComparison.Ordinal)
         .Replace("Protection: no healthy encrypted outbound for this transport", "保护要求：没有符合本次传输要求的可选加密出口", StringComparison.Ordinal)
-        .Replace("Protection: an encrypted proxy is required for this transport", "保护要求：本次传输必须使用加密代理", StringComparison.Ordinal);
+        .Replace("Protection: an encrypted proxy is required for this transport", "保护要求：本次传输必须使用加密代理", StringComparison.Ordinal)
+        .Replace("Privacy: no healthy outbound satisfies the transport and global restrictions", "全局保护：没有同时满足传输支持和保护设置的可用出口", StringComparison.Ordinal)
+        .Replace("Privacy: this outbound does not encrypt the selected transport", "全局保护：所选线路不加密本次传输", StringComparison.Ordinal)
+        .Replace("Privacy: direct outbound disabled", "全局保护：已禁止非回环直连", StringComparison.Ordinal)
+        .Replace("Transport: no healthy outbound supports UDP", "传输支持：没有支持 UDP 的可用出口", StringComparison.Ordinal)
+        .Replace("Transport: the selected outbound does not support UDP", "传输支持：所选固定出口不支持 UDP", StringComparison.Ordinal);
 }

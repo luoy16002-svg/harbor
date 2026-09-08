@@ -60,7 +60,7 @@ for name in ['overview-1280.png', 'overview-980.png', 'overview-live.png', 'over
              'overview-configured.png', 'nodes-configured.png', 'nodes-batch-1280.png', 'nodes-batch-980.png', 'routing-configured.png', 'dns-configured.png',
              'overview-routing-1280.png', 'overview-routing-980.png', 'routing-modes-1280.png', 'routing-modes-980.png', 'routing-direct-980.png',
              'direct-exceptions-editor.png', 'direct-exceptions-editor-620.png', 'routing-exceptions-1280.png', 'routing-exceptions-980.png',
-             'traffic-path-editor.png', 'traffic-path-editor-620.png', 'traffic-paths-1280.png', 'traffic-paths-980.png', 'traffic-path-preview-980.png',
+             'traffic-path-editor.png', 'traffic-path-editor-620.png', 'traffic-path-editor-bottom-620.png', 'traffic-paths-1280.png', 'traffic-paths-980.png', 'traffic-path-preview-980.png', 'traffic-path-overlap-980.png',
              'workspace-history-preview.png', 'workspace-history-preview-660.png', 'workspace-history-unavailable.png', 'settings-history-1280.png', 'settings-history-980.png',
              'diagnostics-live-1280.png', 'diagnostics-live-980.png', 'dns-live-1280.png', 'dns-live-980.png',
              'connections-live.png', 'nodes.png', 'subscriptions.png', 'subscriptions-configured-1280.png', 'subscriptions-configured-980.png',

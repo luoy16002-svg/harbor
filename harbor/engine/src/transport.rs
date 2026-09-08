@@ -19,6 +19,11 @@ pub trait Stream: AsyncRead + AsyncWrite + Unpin + Send {}
 impl<T: AsyncRead + AsyncWrite + Unpin + Send> Stream for T {}
 pub type BoxStream = Box<dyn Stream>;
 
+pub fn supports(node: &Node, protocol: &str) -> bool {
+    protocol == "tcp"
+        || (protocol == "udp" && !matches!(node.kind, NodeKind::Http | NodeKind::Https))
+}
+
 pub fn write_address(buffer: &mut Vec<u8>, host: &str, port: u16) -> Result<()> {
     match host.parse::<IpAddr>() {
         Ok(IpAddr::V4(ip)) => {

@@ -1,15 +1,15 @@
 # Verification
 
-These results apply to the 0.11.0 preview checked on 2026-09-08. They do not establish production readiness or carry over automatically to later builds.
+These results apply to the 0.12.0 preview checked on 2026-09-08. They do not establish production readiness or carry over automatically to later builds.
 
 | Check | Result | Scope |
 | --- | --- | --- |
-| Rust tests | 70 passed | Protocols, routing modes, Windows TCP/UDP ownership and direct exceptions, packets, privacy precedence, encrypted DNS sharing, cancellation, dual-stack scheduling, and adapter selection |
-| Desktop checks | 68 passed | Imports, subscriptions, DPAPI, recovery, routing and direct exception parsing/presets, encrypted history, restoration, bounded batch scheduling, and cancellation |
-| Independent interop | 49 passed | Xray v26.3.27, TCP/UDP paths, 2 MiB payloads, delayed replies, source-port reuse, and concurrent connections |
+| Rust tests | 74 passed | Protocols, routing modes, Windows TCP/UDP ownership and direct exceptions, packets, privacy precedence, encrypted DNS sharing, cancellation, dual-stack scheduling, and adapter selection |
+| Desktop checks | 70 passed | Imports, subscriptions, DPAPI, recovery, routing and direct exception parsing/presets, encrypted history, restoration, bounded batch scheduling, and cancellation |
+| Independent interop | 51 passed | Xray v26.3.27, TCP/UDP paths, 2 MiB payloads, delayed replies, source-port reuse, and concurrent connections |
 | Control interface | 13 passed | Isolation, preflight, stop, atomic configuration changes, targeted cancellation, and routing-mode changes over real TCP/UDP sessions |
 | Connection quality | 5 passed | Delayed DNS family, long address lists, concurrent query sharing, path memory and privacy, and first-answer preflight; release-engine comparison with 0.8.0 |
-| WPF workflows | 67 passed | Import, search, tray controls, HTTPS batches, subscription updates, mode selectors, direct exception presets/editor, configuration restoration, stale reviews, reconnect polling, and failed-save rollback |
+| WPF workflows | 69 passed | Import, search, tray controls, HTTPS batches, subscription updates, mode selectors, direct exception presets/editor, configuration restoration, stale reviews, reconnect polling, readable outbound choices, and failed-save rollback |
 | Layout | Passed | Ten pages, seven dialogs, path cards and a 620-pixel path editor, 1280/980-pixel main windows, a 620-pixel exception editor, a 640-pixel subscription preview, and a 660-pixel history preview |
 | Build | Passed | Strict Clippy and desktop compilation without warnings |
 
@@ -33,7 +33,7 @@ A separate simultaneous check used the saved global routing configuration with d
 
 Direct exception checks use real Windows IPv4/IPv6 TCP and UDP endpoint tables, a local direct server, a local SOCKS proxy, and actual SOCKS5, HTTP CONNECT and SOCKS UDP ingress. Matching process traffic goes direct; disabling the exceptions sends new connections through the proxy while old streams keep their generation. Unknown owners retain the global policy, closed UDP bindings are not cached, conflicting owners are refused, and domain/transport privacy restrictions retain precedence. The WPF editor checks idempotent presets, save/cancel, invalid input, encrypted history, disabling and failed-save rollback. See [direct exceptions](direct-exceptions.md) for bounds and capture scope.
 
-Traffic-path checks cover ordered conflicts across all modes, legacy exception precedence, per-transport encrypted group selection, fixed-member rejection and separate sticky state. Real Windows process fixtures route CONNECT, SOCKS TCP and UDP through the new paths with legacy exceptions disabled. Desktop checks cover path-only subscription references, history, fingerprints, real card/editor actions, simulated process previews, node renaming and forced save rollback. See [traffic paths](traffic-paths.md).
+Traffic-path checks cover global protection before automatic selection, independent TCP/UDP stickiness, loopback exceptions, rejection of unsupported fixed exits, and ordered conflicts across all modes, legacy exception precedence, per-transport encrypted group selection, fixed-member rejection and separate sticky state. Real Windows process fixtures route CONNECT, SOCKS TCP and UDP through the new paths with legacy exceptions disabled. Desktop checks cover path-only subscription references, history, fingerprints, real card/editor actions, simulated process previews, node renaming and forced save rollback. Additional WPF checks verify live overlap advice and unchanged card identity, logical focus and scroll position across refreshes. Two Xray cases exchange real TCP/UDP payloads through mixed automatic groups and confirm the selected outbounds in flow records. See [traffic paths](traffic-paths.md).
 
 An isolated copy of the saved configuration added a protected work-domain path using the selected proxy. The HTTPS request returned 200 and its connection record confirmed that the new path chose a proxy outbound. The original workspace bytes and Windows proxy, DNS and capture routes remained unchanged. This was one target on one connection, not an anonymity or reputation test.
 

@@ -8,7 +8,7 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <AssemblyName>Harbor</AssemblyName>
     <RootNamespace>Harbor</RootNamespace>
-    <Version>0.11.0-preview</Version>
+    <Version>0.12.0-preview</Version>
     <ApplicationIcon>Assets/harbor.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>

@@ -132,6 +132,12 @@ pub fn encrypted(node: &Node, protocol: &str) -> bool {
         NodeKind::Socks5 | NodeKind::Http => node.tls && protocol == "tcp",
     }
 }
+pub fn is_loopback(host: &str) -> bool {
+    host.eq_ignore_ascii_case("localhost")
+        || host
+            .parse::<IpAddr>()
+            .is_ok_and(|address| address.is_loopback())
+}
 pub fn rejection(
     config: &Config,
     host: &str,
@@ -141,12 +147,8 @@ pub fn rejection(
     if outbound == "REJECT" {
         return None;
     }
-    let local = host.eq_ignore_ascii_case("localhost")
-        || host
-            .parse::<IpAddr>()
-            .is_ok_and(|address| address.is_loopback());
     if outbound == "DIRECT" {
-        return (config.privacy.block_direct && !local)
+        return (config.privacy.block_direct && !is_loopback(host))
             .then_some("Privacy: direct outbound disabled");
     }
     if config.privacy.require_encrypted_proxy

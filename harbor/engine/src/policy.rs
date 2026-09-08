@@ -74,7 +74,31 @@ impl Health {
 #[derive(Default)]
 pub struct Selector {
     pub health: HashMap<String, Health>,
-    chosen: HashMap<(String, bool, bool), (String, Instant)>,
+    chosen: HashMap<(String, SelectionGuard), (String, Instant)>,
+}
+
+// At most eight independent choices per group: transport and effective protections.
+#[derive(Clone, Copy, Default, Eq, Hash, PartialEq)]
+struct SelectionGuard {
+    udp: bool,
+    encrypted: bool,
+    block_direct: bool,
+}
+impl SelectionGuard {
+    fn allows(self, config: &Config, name: &str) -> bool {
+        if name == "DIRECT" {
+            return !self.block_direct;
+        }
+        let protocol = if self.udp { "udp" } else { "tcp" };
+        config
+            .nodes
+            .iter()
+            .find(|node| node.name == name)
+            .is_some_and(|node| {
+                crate::transport::supports(node, protocol)
+                    && (!self.encrypted || crate::privacy::encrypted(node, protocol))
+            })
+    }
 }
 impl Selector {
     pub fn reconcile(&mut self, config: &Config) {
@@ -85,7 +109,7 @@ impl Selector {
                 .entry(node.name.clone())
                 .or_insert_with(|| Health::new(&node.name));
         }
-        self.chosen.retain(|(name, _, _), (node, _)| {
+        self.chosen.retain(|(name, _), (node, _)| {
             config
                 .groups
                 .iter()
@@ -99,15 +123,23 @@ impl Selector {
             .record(latency, now);
     }
     pub fn choose(&mut self, config: &Config, name: &str, now: Instant) -> Result<String> {
-        self.choose_guarded(config, name, now, false, "tcp")
+        self.choose_guarded(
+            config,
+            name,
+            now,
+            SelectionGuard {
+                encrypted: config.privacy.require_encrypted_proxy,
+                block_direct: config.privacy.block_direct,
+                ..Default::default()
+            },
+        )
     }
-    pub fn choose_guarded(
+    fn choose_guarded(
         &mut self,
         config: &Config,
         name: &str,
         now: Instant,
-        encrypted: bool,
-        protocol: &str,
+        guard: SelectionGuard,
     ) -> Result<String> {
         let Some(group) = config.groups.iter().find(|g| g.name == name) else {
             return Ok(name.into());
@@ -117,12 +149,7 @@ impl Selector {
         }
         let usable = |n: &String| {
             (n == "DIRECT" || self.health.get(n).is_none_or(Health::usable))
-                && (!encrypted
-                    || config
-                        .nodes
-                        .iter()
-                        .find(|node| &node.name == n)
-                        .is_some_and(|node| crate::privacy::encrypted(node, protocol)))
+                && guard.allows(config, n)
         };
         let candidates: Vec<_> = group.members.iter().filter(|n| usable(n)).collect();
         if candidates.is_empty() {
@@ -146,7 +173,7 @@ impl Selector {
         } else {
             candidates[0]
         };
-        let key = (name.to_owned(), encrypted, encrypted && protocol == "udp");
+        let key = (name.to_owned(), guard);
         if let Some((current, switched)) = self.chosen.get(&key)
             && candidates.contains(&current)
         {
@@ -280,15 +307,29 @@ pub fn decide_with_process(
         (config.final_policy.clone(), "FINAL".into(), None)
     };
     let mut reason = reason;
-    let mut outbound =
-        match selector.choose_guarded(config, &policy, Instant::now(), protected, protocol) {
-            Ok(outbound) => outbound,
-            Err(_) if protected => {
-                reason += " · Protection: no healthy encrypted outbound for this transport";
-                "REJECT".into()
-            }
-            Err(error) => return Err(error),
-        };
+    let guard = SelectionGuard {
+        udp: protocol == "udp",
+        encrypted: protected || config.privacy.require_encrypted_proxy,
+        block_direct: protected
+            || (config.privacy.block_direct && !crate::privacy::is_loopback(&host)),
+    };
+    let mut outbound = match selector.choose_guarded(config, &policy, Instant::now(), guard) {
+        Ok(outbound) => outbound,
+        Err(_) if protected => {
+            reason += " · Protection: no healthy encrypted outbound for this transport";
+            "REJECT".into()
+        }
+        Err(_) if guard.encrypted || guard.block_direct => {
+            reason +=
+                " · Privacy: no healthy outbound satisfies the transport and global restrictions";
+            "REJECT".into()
+        }
+        Err(_) if guard.udp => {
+            reason += " · Transport: no healthy outbound supports UDP";
+            "REJECT".into()
+        }
+        Err(error) => return Err(error),
+    };
     if protected
         && outbound != "REJECT"
         && config
@@ -303,6 +344,15 @@ pub fn decide_with_process(
     if let Some(privacy_reason) = crate::privacy::rejection(config, &host, protocol, &outbound) {
         outbound = "REJECT".into();
         reason = privacy_reason.into();
+    }
+    if config
+        .nodes
+        .iter()
+        .find(|node| node.name == outbound)
+        .is_some_and(|node| !crate::transport::supports(node, protocol))
+    {
+        outbound = "REJECT".into();
+        reason += " · Transport: the selected outbound does not support UDP";
     }
     Ok(Decision {
         policy,
@@ -412,7 +462,9 @@ mod tests {
         for _ in 0..3 {
             selector.record("fixture", None, Instant::now());
         }
-        assert!(decide(&config, &mut selector, "other.invalid", 443, "tcp", 1).is_err());
+        let unavailable = decide(&config, &mut selector, "other.invalid", 443, "tcp", 1).unwrap();
+        assert_eq!(unavailable.outbound, "REJECT");
+        assert!(unavailable.reason.contains("global restrictions"));
     }
 
     #[test]
@@ -449,6 +501,14 @@ mod tests {
         let t = Instant::now();
         let mut s = Selector::default();
         let mut c = Config::default();
+        for name in ["a", "b"] {
+            c.nodes.push(
+                serde_json::from_value(serde_json::json!({
+                    "name":name, "kind":"socks5", "server":"127.0.0.1", "port":9
+                }))
+                .unwrap(),
+            );
+        }
         c.groups.push(Group {
             name: "auto".into(),
             kind: GroupKind::Latency,

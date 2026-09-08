@@ -75,7 +75,7 @@ fn ordered_paths_override_modes_and_exceptions_without_weakening_global_blocks()
             assert_eq!(app.generation, 7);
             assert_eq!(
                 evaluate(&config, &mut selector, "work.example", protocol, None).outbound,
-                "tls"
+                if protocol == "tcp" { "tls" } else { "REJECT" }
             );
             assert_eq!(
                 evaluate(

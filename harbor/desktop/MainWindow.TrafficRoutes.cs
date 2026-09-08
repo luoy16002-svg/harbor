@@ -8,16 +8,18 @@ namespace Harbor;
 
 public partial class MainWindow
 {
-    private sealed record TrafficRouteRow(int Index, string Name, string State, string ToggleText, string Sources, string SourceDetail, string Exit, string Protection, string Facts);
+    private sealed record TrafficRouteRow(int Index, string Name, string State, string ToggleText, string Sources, string SourceDetail, string Exit, string Protection, string Facts, string Advice);
     private void SyncTrafficRoutes()
     {
         if (TrafficRouteCards == null) return;
         var routes = TrafficRoutes.Read(profile);
-        TrafficRouteCards.ItemsSource = routes.Select((route, index) => new TrafficRouteRow(index, route.Name,
+        var rows = routes.Select((route, index) => new TrafficRouteRow(index, route.Name,
             route.Enabled ? "已启用" : "已停用", route.Enabled ? "停用" : "启用", string.Join("、", route.Processes.Concat(route.Domains).Take(3)) + (route.Processes.Length + route.Domains.Length > 3 ? " …" : ""),
             string.Join("\n", route.Processes.Concat(route.Domains)), TrafficRoutes.PolicyLabel(profile, route.Policy),
             route.RequireEncryptedProxy ? "必须使用加密代理\n不满足即拦截" : "使用全局保护设置",
-            TrafficRoutes.OutboundFacts(profile, route.Policy ?? S(profile, "finalPolicy")))).ToList();
+            TrafficRoutes.OutboundFacts(profile, route.Policy ?? S(profile, "finalPolicy"), route.RequireEncryptedProxy), TrafficRoutes.OverlapNotice(routes, index))).ToList();
+        if (TrafficRouteCards.ItemsSource is not System.Collections.Generic.List<TrafficRouteRow> current || !current.SequenceEqual(rows))
+            TrafficRouteCards.ItemsSource = rows;
         TrafficRouteEmpty.Visibility = routes.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         var exceptions = DirectExceptions.Read(profile);
         var legacySources = exceptions.Processes.Concat(exceptions.Domains).ToArray();

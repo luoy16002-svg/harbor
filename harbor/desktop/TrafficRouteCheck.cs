@@ -29,6 +29,11 @@ public partial class MainWindow
             }
         }
         Button CardButton(string label, int index) => Buttons(TrafficRouteCards).Single(button => button.Content as string == label && button.Tag is int tag && tag == index);
+        bool HasText(DependencyObject root, string text)
+        {
+            if (root is TextBlock block && block.Text.Contains(text)) return true;
+            return Enumerable.Range(0, VisualTreeHelper.GetChildrenCount(root)).Any(i => HasText(VisualTreeHelper.GetChild(root, i), text));
+        }
         TrafficRouteDialog Dialog(TrafficRouteSetting initial, Func<TrafficRouteDialog, Task> action)
         {
             var dialog = new TrafficRouteDialog(this, profile, initial); Exception? failure = null;
@@ -64,7 +69,15 @@ public partial class MainWindow
             checks.Add("invalid domain input keeps the path editor open with an error");
             var accepted = Dialog(work, async dialog =>
             {
-                await capture(dialog, "traffic-path-editor"); dialog.Width = 620; dialog.Height = 600; await capture(dialog, "traffic-path-editor-620"); Click(dialog.SaveButton);
+                await capture(dialog, "traffic-path-editor"); dialog.Width = 620; dialog.Height = 600; await capture(dialog, "traffic-path-editor-620");
+                Require(HasText(dialog.PolicyInput, "线路 · 本机 TLS 线路"), "selected outbound did not render its readable label");
+                var fixedChoice = dialog.PolicyInput.SelectedItem;
+                dialog.PolicyInput.SelectedItem = dialog.PolicyInput.Items.Cast<object>().Single(item => item.ToString() == "策略组 · 加密备用组"); dialog.UpdateLayout();
+                Require(HasText(dialog.PolicyInput, "策略组 · 加密备用组") && HasText(dialog, "TCP 2 / UDP 1"), "group selection did not update its label and transport counts");
+                ((DockPanel)dialog.Content).Children.OfType<ScrollViewer>().Single().ScrollToEnd();
+                await capture(dialog, "traffic-path-editor-bottom-620");
+                dialog.PolicyInput.SelectedItem = fixedChoice; Click(dialog.SaveButton);
+                checks.Add("outbound picker renders readable labels and updates configured TCP/UDP counts when selecting a group");
             });
             Require(accepted.Result != null, "save did not produce a path");
             await SaveTrafficRoutesAsync([accepted.Result!]);
@@ -80,6 +93,24 @@ public partial class MainWindow
             checks.Add("process and transport preview is offline and clears stale results when inputs change");
             var shadow = new TrafficRouteSetting("直连优先级测试", true, ["work.example"], [], "DIRECT", false);
             await SaveTrafficRoutesAsync([work, shadow]); UpdateLayout();
+            Require(((TrafficRouteRow)TrafficRouteCards.Items[1]).Advice.Contains("全部条件"), "fully shadowed card did not explain its priority");
+            Dialog(shadow with { Name = "重叠预览" }, dialog =>
+            {
+                Require(dialog.OverlapText.Text.Contains("全部条件"), "editor omitted live priority advice");
+                dialog.DomainsInput.Text = "unrelated.example";
+                Require(!dialog.OverlapText.Text.Contains("全部条件") && dialog.OverlapText.Text.Contains("可能同时命中"), "editor retained stale full-coverage advice");
+                dialog.DialogResult = false; return Task.CompletedTask;
+            });
+            var cardSource = TrafficRouteCards.ItemsSource; var editButton = CardButton("编辑", 0);
+            System.Windows.Input.FocusManager.SetFocusedElement(this, editButton);
+            double scrollOffset = RoutingPage.VerticalOffset;
+            for (int i = 0; i < 3; i++) SyncHome(); UpdateLayout();
+            Require(ReferenceEquals(cardSource, TrafficRouteCards.ItemsSource) && ReferenceEquals(editButton, CardButton("编辑", 0)) &&
+                ReferenceEquals(System.Windows.Input.FocusManager.GetFocusedElement(this), editButton) && RoutingPage.VerticalOffset == scrollOffset,
+                "unchanged status refresh recreated cards or lost focus/scroll position");
+            checks.Add("overlap advice updates in cards and editor while unchanged refresh preserves card focus and scroll");
+            Notice.Visibility = Visibility.Collapsed; Width = 980; Height = 700; UpdateLayout(); RoutingPage.ScrollToVerticalOffset(280);
+            await capture(this, "traffic-path-overlap-980");
             Click(CardButton("↓", 0)); await Settled(); Require(S(await Explain(), "outbound") == "DIRECT", "move-down did not change first-match priority");
             Click(CardButton("↑", 1)); await Settled(); Require(S(await Explain(), "outbound") == "本机 TLS 线路", "move-up did not restore priority");
             Click(CardButton("停用", 0)); await Settled(); Require(S(await Explain(), "outbound") == "DIRECT", "disable did not restore the next path");

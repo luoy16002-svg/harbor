@@ -46,6 +46,34 @@ internal static class TrafficRouteChecks
             profile["trafficRoutes"] = TrafficRoutes.Serialize([Route()]); Assert(original == VerificationHistory.Fingerprint(profile, "owned"));
             profile["nodes"]![0]!["tls"] = false; Assert(original != VerificationHistory.Fingerprint(profile, "owned"));
         });
+        check("Automatic group capability counts include transport support and both protection levels", () =>
+        {
+            var profile = Fixture(); profile["nodes"]!.AsArray().Add(new JsonObject { ["name"] = "encrypted", ["kind"] = "shadowsocks" });
+            profile["nodes"]!.AsArray().Add(new JsonObject { ["name"] = "web", ["kind"] = "https" });
+            profile["groups"] = new JsonArray(new JsonObject { ["name"] = "pool", ["kind"] = "fallback", ["members"] = new JsonArray("DIRECT", "owned", "web", "encrypted") });
+            Assert(TrafficRoutes.OutboundFacts(profile, "pool").Contains("TCP 4 / UDP 3"));
+            Assert(TrafficRoutes.OutboundFacts(profile, "pool", true).Contains("TCP 3 / UDP 1"));
+            profile["privacy"] = new JsonObject { ["requireEncryptedProxy"] = true, ["blockDirect"] = true };
+            Assert(TrafficRoutes.OutboundFacts(profile, "pool").Contains("TCP 3 / UDP 1"));
+            profile["privacy"]!["blockDirect"] = false;
+            Assert(TrafficRoutes.OutboundFacts(profile, "pool").Contains("TCP 4 / UDP 2"));
+            Assert(TrafficRoutes.OutboundFacts(profile, "pool").Contains("未计入实时健康"));
+        });
+        check("Priority advice distinguishes full coverage, partial overlap, and process/domain intersections", () =>
+        {
+            var first = Route() with { Name = "first", Domains = ["EXAMPLE."], Processes = ["WORK.EXE"] };
+            var second = Route();
+            Assert(TrafficRoutes.OverlapNotice([first, second], 1).Contains("全部条件"));
+            Assert(TrafficRoutes.OverlapNotice([first with { Enabled = false }, second], 1) == "");
+            Assert(TrafficRoutes.OverlapNotice([first, second with { Enabled = false }], 1) == "");
+            Assert(TrafficRoutes.OverlapNotice([first, second with { Processes = ["Another.exe"] }], 1).Contains("部分条件"));
+            Assert(TrafficRoutes.OverlapNotice([first with { Domains = ["sub.work.example"], Processes = [] }, second with { Processes = [] }], 1).Contains("部分条件"));
+            Assert(TrafficRoutes.OverlapNotice([first with { Domains = ["notwork.example"], Processes = [] }, second with { Processes = [] }], 1) == "");
+            Assert(TrafficRoutes.OverlapNotice([first with { Domains = [] }, second with { Processes = [] }], 1).Contains("可能同时命中"));
+            var domainOnly = first with { Processes = [] }; var processOnly = first with { Name = "process", Domains = [] };
+            Assert(TrafficRoutes.OverlapNotice([domainOnly, processOnly, second], 2).Contains("全部条件"));
+            Assert(!TrafficRoutes.ExplainReason("Transport: the selected outbound does not support UDP").Contains("Transport:"));
+        });
         check("Encrypted workspace history restores path order, enablement, and protection requirements", () =>
         {
             string previous = Storage.Root; Storage.Root = Path.Combine(previous, "paths-" + Guid.NewGuid().ToString("N"));

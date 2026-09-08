@@ -504,6 +504,7 @@
                       <TextBlock Grid.Column="4" Text="{Binding Protection}" TextWrapping="Wrap"/>
                     </Grid>
                     <TextBlock Text="{Binding Facts}" Style="{StaticResource Hint}" Margin="0,14,0,0"/>
+                    <TextBlock Text="{Binding Advice}" Foreground="#805B26" TextWrapping="Wrap" Margin="0,10,0,0"><TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><DataTrigger Binding="{Binding Advice}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
                   </StackPanel>
                 </Border>
               </DataTemplate></ItemsControl.ItemTemplate>

@@ -1,6 +1,6 @@
 # Harbor
 
-A Windows proxy client with a Rust forwarding engine and a WPF desktop. This is the **0.11.0 preview**.
+A Windows proxy client with a Rust forwarding engine and a WPF desktop. This is the **0.12.0 preview**.
 
 ## Use
 
@@ -25,6 +25,7 @@ Upstream connections use a physical network adapter by default to avoid routing 
 - Saved routing modes: rules, one default outbound, or direct; live switching preserves established connections.
 - Domain and Windows process direct exceptions that also work with the global outbound; editable Genshin / miHoYo and Bilibili presets.
 - Visual application / website paths with fixed or grouped exits, optional encrypted-proxy requirements, and offline TCP/UDP/process checks.
+- Automatic groups filter by TCP/UDP support and protection settings; path cards explain overlap and configured eligible members.
 - DoH / DoT, local domain lists, and connection privacy controls.
 - Streaming dual-stack TCP setup, shared concurrent DNS queries, and bounded in-memory path hints.
 - Live traffic, connection details, tray actions, and proxy search.

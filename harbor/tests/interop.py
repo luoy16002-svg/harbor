@@ -205,6 +205,23 @@ def run():
             if node['kind'] in ('http','https'):continue
             engine.use(node);check('reference UDP '+node['name'],udp_flow)
         engine.use();summary=engine.ask('snapshot');assert summary['accepted']>100;assert summary['downloaded']>=2*1024*1024
+        def automatic_transports(global_protection):
+            engine.ask('stop')
+            plain=next(n for n in nodes if n['kind']=='socks5')
+            tls=next(n for n in nodes if n['kind']=='https')
+            aead=next(n for n in nodes if n['kind']=='shadowsocks')
+            members=[plain,tls,aead] if global_protection else [tls,aead]
+            engine.config.update(nodes=members, groups=[dict(name='transport-pool',kind='fallback',members=[n['name'] for n in members])],
+                                 finalPolicy='transport-pool', routingMode='global', probeIntervalSecs=3600)
+            engine.config['privacy'].update(requireEncryptedProxy=global_protection,blockDirect=global_protection)
+            engine.start()
+            roundtrip();udp_flow();roundtrip()
+            flows=[flow for flow in engine.ask('snapshot')['flows'] if flow['policy']=='transport-pool']
+            for protocol,expected in [('SOCKS5',tls['name']),('UDP',aead['name'])]:
+                routed=[flow for flow in flows if flow['protocol']==protocol]
+                assert routed and all(flow['outbound']==expected and flow['downloaded']>0 for flow in routed),routed
+        check('automatic group keeps working TCP and UDP members independently',lambda:automatic_transports(False))
+        check('global encryption selects eligible automatic members with real TCP and UDP payloads',lambda:automatic_transports(True))
     finally:
         if engine:engine.close()
         if ref:ref.terminate();ref.wait(timeout=5)

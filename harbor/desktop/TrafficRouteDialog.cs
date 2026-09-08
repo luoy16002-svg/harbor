@@ -9,7 +9,10 @@ namespace Harbor;
 
 internal sealed class TrafficRouteDialog : Window
 {
-    private sealed record PolicyOption(string? Key, string Label);
+    private sealed record PolicyOption(string? Key, string Label)
+    {
+        public override string ToString() => Label;
+    }
     internal TextBox NameInput { get; }
     internal TextBox DomainsInput { get; }
     internal TextBox ProcessesInput { get; }
@@ -18,6 +21,7 @@ internal sealed class TrafficRouteDialog : Window
     internal ComboBox PolicyInput { get; }
     internal Button SaveButton { get; }
     internal TextBlock ErrorText { get; }
+    internal TextBlock OverlapText { get; }
     internal TrafficRouteSetting? Result { get; private set; }
 
     internal TrafficRouteDialog(Window owner, JsonObject profile, TrafficRouteSetting initial, int editIndex = -1)
@@ -43,13 +47,28 @@ internal sealed class TrafficRouteDialog : Window
         var options = new[] { new PolicyOption(null, "跟随默认出口"), new PolicyOption("DIRECT", "直连 · 原生网络"), new PolicyOption("REJECT", "拦截") }
             .Concat((profile["groups"] as JsonArray ?? []).Select(v => new PolicyOption(v!["name"]!.GetValue<string>(), "策略组 · " + v["name"]!.GetValue<string>())))
             .Concat((profile["nodes"] as JsonArray ?? []).Select(v => new PolicyOption(v!["name"]!.GetValue<string>(), "线路 · " + v["name"]!.GetValue<string>()))).ToArray();
-        PolicyInput = new ComboBox { ItemsSource = options, DisplayMemberPath = "Label", SelectedItem = options.FirstOrDefault(v => v.Key == initial.Policy), Margin = new Thickness(0, 0, 0, 8) }; content.Children.Add(PolicyInput);
+        PolicyInput = new ComboBox { ItemsSource = options, SelectedItem = options.FirstOrDefault(v => v.Key == initial.Policy), Margin = new Thickness(0, 0, 0, 8) }; content.Children.Add(PolicyInput);
         var facts = Hint(""); content.Children.Add(facts);
-        void UpdateFacts() => facts.Text = TrafficRoutes.OutboundFacts(profile, (PolicyInput.SelectedItem as PolicyOption)?.Key ?? profile["finalPolicy"]!.GetValue<string>());
-        PolicyInput.SelectionChanged += (_, _) => UpdateFacts(); UpdateFacts();
         content.Children.Add(Label("3  保护要求"));
         EncryptedInput = new CheckBox { Content = "必须使用加密代理 · 不满足时拦截", IsChecked = initial.RequireEncryptedProxy, Margin = new Thickness(0, 0, 0, 8) }; content.Children.Add(EncryptedInput);
-        content.Children.Add(Hint("自动组排除不符合 TCP / UDP 加密要求或已判定不可用的成员；未测试成员仍可尝试。固定出口不自动换线。该选项不保证匿名、IP 信誉或流量不可识别。"));
+        content.Children.Add(Hint("自动组先检查 TCP / UDP 支持、路径和全局保护，再排除已判定不可用的成员；未测试成员仍可尝试。固定出口不自动换线。该选项不保证匿名、IP 信誉或流量不可识别。"));
+        OverlapText = Hint(""); OverlapText.Foreground = new SolidColorBrush(Color.FromRgb(128, 91, 38)); content.Children.Add(OverlapText);
+        void UpdateFacts() => facts.Text = TrafficRoutes.OutboundFacts(profile, (PolicyInput.SelectedItem as PolicyOption)?.Key ?? profile["finalPolicy"]!.GetValue<string>(), EncryptedInput.IsChecked == true);
+        void UpdateOverlap()
+        {
+            try
+            {
+                var entries = DirectExceptions.Parse(true, DomainsInput.Text, ProcessesInput.Text);
+                var route = initial with { Enabled = EnabledInput.IsChecked == true, Domains = entries.Domains, Processes = entries.Processes };
+                var routes = TrafficRoutes.Read(profile); int index = editIndex >= 0 ? editIndex : routes.Count;
+                if (editIndex >= 0) routes[index] = route; else routes.Add(route);
+                OverlapText.Text = route.Domains.Length + route.Processes.Length == 0 ? "" : TrafficRoutes.OverlapNotice(routes, index);
+            }
+            catch (FormatException) { OverlapText.Text = "填写有效的域名或进程名后，可查看路径优先级提示。"; }
+        }
+        PolicyInput.SelectionChanged += (_, _) => UpdateFacts(); EncryptedInput.Checked += (_, _) => UpdateFacts(); EncryptedInput.Unchecked += (_, _) => UpdateFacts(); UpdateFacts();
+        DomainsInput.TextChanged += (_, _) => UpdateOverlap(); ProcessesInput.TextChanged += (_, _) => UpdateOverlap();
+        EnabledInput.Checked += (_, _) => UpdateOverlap(); EnabledInput.Unchecked += (_, _) => UpdateOverlap(); UpdateOverlap();
         SaveButton.Click += (_, _) =>
         {
             try
